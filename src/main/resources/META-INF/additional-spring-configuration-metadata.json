@@ -1,0 +1,19 @@
+{
+  "properties": [
+    {
+      "name": "jwt.secret",
+      "type": "java.lang.String",
+      "description": "Clave secreta utilizada para la firma y validación de tokens JWT en SEPI S.A.C."
+    },
+    {
+      "name": "jwt.expiration",
+      "type": "java.lang.Long",
+      "description": "Tiempo de expiración del token JWT en milisegundos (ej. 86400000 para 24 horas)."
+    },
+    {
+      "name": "cors.allowed-origins",
+      "type": "java.lang.String",
+      "description": "Lista de orígenes HTTP/HTTPS permitidos separados por coma para CORS (ej. http://localhost:5173)."
+    }
+  ]
+}
