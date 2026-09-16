@@ -42,10 +42,14 @@ public class CompanyService {
             throw new DuplicateResourceException("Ya existe una empresa registrada con el RUC " + dto.getRuc());
         }
 
+        String status = (dto.getSubscriptionStatus() != null && !dto.getSubscriptionStatus().trim().isEmpty())
+                ? dto.getSubscriptionStatus().trim().toUpperCase()
+                : "ACTIVE";
+
         CompanyEntity company = new CompanyEntity();
         company.setBusinessName(dto.getBusinessName());
         company.setRuc(dto.getRuc());
-        company.setSubscriptionStatus("ACTIVE");
+        company.setSubscriptionStatus(status);
         company.setIsDeleted(false);
 
         CompanyEntity savedCompany = companyRepository.save(company);
