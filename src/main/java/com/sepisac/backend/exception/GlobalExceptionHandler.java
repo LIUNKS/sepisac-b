@@ -102,8 +102,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
-    @ExceptionHandler(DuplicateResourceException.class)
-    public ResponseEntity<ErrorResponseDTO> handleDuplicateResource(DuplicateResourceException ex, HttpServletRequest request) {
+    @ExceptionHandler({DuplicateResourceException.class, BusinessRuleException.class, IllegalStateException.class})
+    public ResponseEntity<ErrorResponseDTO> handleConflictExceptions(RuntimeException ex, HttpServletRequest request) {
         ErrorResponseDTO error = new ErrorResponseDTO(
                 HttpStatus.CONFLICT.value(),
                 HttpStatus.CONFLICT.getReasonPhrase(),
