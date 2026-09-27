@@ -1,6 +1,6 @@
 package com.sepisac.backend.service;
 
-import com.sepisac.backend.dto.AuthResponseDTO;
+import com.sepisac.backend.dto.AuthResult;
 import com.sepisac.backend.dto.LoginRequestDTO;
 import com.sepisac.backend.security.JwtTokenProvider;
 import com.sepisac.backend.security.UserPrincipal;
@@ -70,7 +70,7 @@ class AuthServiceTest {
     class LoginTests {
 
         @Test
-        @DisplayName("Should successfully authenticate and return AuthResponseDTO with token and user details")
+        @DisplayName("Should successfully authenticate and return AuthResult with token and user details")
         void shouldAuthenticateSuccessfullyAndReturnAuthResponse() {
             Authentication authentication = mock(Authentication.class);
             when(authentication.getPrincipal()).thenReturn(activePrincipal);
@@ -78,15 +78,15 @@ class AuthServiceTest {
                     .thenReturn(authentication);
             when(jwtTokenProvider.generateToken(activePrincipal)).thenReturn("mocked.jwt.token.123");
 
-            AuthResponseDTO response = authService.login(validLoginRequest);
+            AuthResult result = authService.login(validLoginRequest);
 
-            assertThat(response).isNotNull();
-            assertThat(response.getToken()).isEqualTo("mocked.jwt.token.123");
-            assertThat(response.getType()).isEqualTo("Bearer");
-            assertThat(response.getEmail()).isEqualTo("usuario@sepisac.com");
-            assertThat(response.getUsername()).isEqualTo("johan_admin");
-            assertThat(response.getRole()).isEqualTo("ROLE_ADMIN_EMPRESA");
-            assertThat(response.getCompanyId()).isEqualTo(companyId);
+            assertThat(result).isNotNull();
+            assertThat(result.token()).isEqualTo("mocked.jwt.token.123");
+            assertThat(result.responseDTO()).isNotNull();
+            assertThat(result.responseDTO().getEmail()).isEqualTo("usuario@sepisac.com");
+            assertThat(result.responseDTO().getUsername()).isEqualTo("johan_admin");
+            assertThat(result.responseDTO().getRole()).isEqualTo("ROLE_ADMIN_EMPRESA");
+            assertThat(result.responseDTO().getCompanyId()).isEqualTo(companyId);
 
             verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
             verify(jwtTokenProvider).generateToken(activePrincipal);
