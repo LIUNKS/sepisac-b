@@ -19,10 +19,15 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final CustomUserDetailsService userDetailsService;
+    private final AuthCookieProvider authCookieProvider;
 
-    public JwtTokenFilter(JwtTokenProvider jwtTokenProvider, CustomUserDetailsService userDetailsService) {
+    public JwtTokenFilter(
+            JwtTokenProvider jwtTokenProvider,
+            CustomUserDetailsService userDetailsService,
+            AuthCookieProvider authCookieProvider) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userDetailsService = userDetailsService;
+        this.authCookieProvider = authCookieProvider;
     }
 
     @Override
@@ -49,10 +54,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     }
 
     private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
+        return authCookieProvider.extractToken(request);
     }
 }
