@@ -1,6 +1,7 @@
 package com.sepisac.backend.service;
 
 import com.sepisac.backend.dto.AuthResponseDTO;
+import com.sepisac.backend.dto.AuthResult;
 import com.sepisac.backend.dto.LoginRequestDTO;
 import com.sepisac.backend.security.JwtTokenProvider;
 import com.sepisac.backend.security.UserPrincipal;
@@ -21,7 +22,7 @@ public class AuthService {
         this.authenticationManager = authenticationManager;
     }
 
-    public AuthResponseDTO login(LoginRequestDTO loginRequest) {
+    public AuthResult login(LoginRequestDTO loginRequest) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
         );
@@ -29,13 +30,13 @@ public class AuthService {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         String token = jwtTokenProvider.generateToken(userPrincipal);
 
-        return new AuthResponseDTO(
-                token,
-                "Bearer",
+        AuthResponseDTO responseDTO = new AuthResponseDTO(
                 userPrincipal.getEmail(),
                 userPrincipal.getUsername(),
                 userPrincipal.getRole(),
                 userPrincipal.getCompanyId()
         );
+
+        return new AuthResult(token, responseDTO);
     }
 }
