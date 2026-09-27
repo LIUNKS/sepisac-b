@@ -3,8 +3,11 @@ package com.sepisac.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sepisac.backend.dto.AuthResponseDTO;
+import com.sepisac.backend.dto.AuthResult;
 import com.sepisac.backend.dto.LoginRequestDTO;
 import com.sepisac.backend.exception.GlobalExceptionHandler;
+import com.sepisac.backend.security.AuthCookieProvider;
+import com.sepisac.backend.security.UserPrincipal;
 import com.sepisac.backend.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,18 +17,27 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.Collections;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,6 +49,9 @@ class AuthControllerTest {
 
     @Mock
     private AuthService authService;
+
+    @Mock
+    private AuthCookieProvider authCookieProvider;
 
     @InjectMocks
     private AuthController authController;
@@ -51,6 +66,8 @@ class AuthControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(authController)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+
+        SecurityContextHolder.clearContext();
     }
 
     @Nested
@@ -58,32 +75,43 @@ class AuthControllerTest {
     class LoginEndpointTests {
 
         @Test
-        @DisplayName("Should return 200 OK with AuthResponseDTO when credentials are valid")
-        void shouldReturn200WithAuthResponseWhenCredentialsAreValid() throws Exception {
+        @DisplayName("Should return 200 OK with Set-Cookie header and user details without token in body")
+        void shouldReturn200WithCookieAndUserDetailsWhenCredentialsAreValid() throws Exception {
             UUID companyId = UUID.randomUUID();
-            AuthResponseDTO authResponse = new AuthResponseDTO(
-                    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyToken",
-                    "Bearer",
+            AuthResponseDTO userDetails = new AuthResponseDTO(
                     "usuario@sepisac.com",
                     "johan_admin",
                     "ROLE_ADMIN_EMPRESA",
                     companyId
             );
+            AuthResult authResult = new AuthResult("dummy.jwt.token", userDetails);
 
             LoginRequestDTO request = new LoginRequestDTO("usuario@sepisac.com", "miPasswordSeguro123");
 
-            when(authService.login(any(LoginRequestDTO.class))).thenReturn(authResponse);
+            ResponseCookie sampleCookie = ResponseCookie.from("jwt_token", "dummy.jwt.token")
+                    .httpOnly(true)
+                    .secure(false)
+                    .path("/")
+                    .maxAge(86400)
+                    .sameSite("Lax")
+                    .build();
+
+            when(authService.login(any(LoginRequestDTO.class))).thenReturn(authResult);
+            when(authCookieProvider.createAuthCookie("dummy.jwt.token")).thenReturn(sampleCookie);
 
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.token", is("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyToken")))
-                    .andExpect(jsonPath("$.type", is("Bearer")))
+                    .andExpect(header().exists(HttpHeaders.SET_COOKIE))
+                    .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("jwt_token=dummy.jwt.token")))
+                    .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("HttpOnly")))
                     .andExpect(jsonPath("$.email", is("usuario@sepisac.com")))
                     .andExpect(jsonPath("$.username", is("johan_admin")))
                     .andExpect(jsonPath("$.role", is("ROLE_ADMIN_EMPRESA")))
-                    .andExpect(jsonPath("$.companyId", is(companyId.toString())));
+                    .andExpect(jsonPath("$.companyId", is(companyId.toString())))
+                    .andExpect(jsonPath("$.token").doesNotExist())
+                    .andExpect(jsonPath("$.type").doesNotExist());
         }
 
         @Test
@@ -134,6 +162,74 @@ class AuthControllerTest {
                     .andExpect(jsonPath("$.message", is("Credenciales inválidas")))
                     .andExpect(jsonPath("$.path", is("/api/auth/login")))
                     .andExpect(jsonPath("$.timestamp").exists());
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/auth/logout")
+    class LogoutEndpointTests {
+
+        @Test
+        @DisplayName("Should return 200 OK with clean cookie in Set-Cookie header")
+        void shouldReturn200WithCleanCookieOnLogout() throws Exception {
+            ResponseCookie cleanCookie = ResponseCookie.from("jwt_token", "")
+                    .httpOnly(true)
+                    .secure(false)
+                    .path("/")
+                    .maxAge(0)
+                    .sameSite("Lax")
+                    .build();
+
+            when(authCookieProvider.createCleanAuthCookie()).thenReturn(cleanCookie);
+
+            mockMvc.perform(post("/api/auth/logout"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().exists(HttpHeaders.SET_COOKIE))
+                    .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("jwt_token=")))
+                    .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")));
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/auth/me")
+    class MeEndpointTests {
+
+        @Test
+        @DisplayName("Should return 200 OK with user details when authenticated")
+        void shouldReturn200WithUserDetailsWhenAuthenticated() throws Exception {
+            UUID userId = UUID.randomUUID();
+            UUID companyId = UUID.randomUUID();
+            UserPrincipal principal = new UserPrincipal(
+                    userId,
+                    "usuario@sepisac.com",
+                    "johan_admin",
+                    "password",
+                    companyId,
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")),
+                    true
+            );
+
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            mockMvc.perform(get("/api/auth/me"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.email", is("usuario@sepisac.com")))
+                    .andExpect(jsonPath("$.username", is("johan_admin")))
+                    .andExpect(jsonPath("$.role", is("ROLE_ADMIN_EMPRESA")))
+                    .andExpect(jsonPath("$.companyId", is(companyId.toString())));
+        }
+
+        @Test
+        @DisplayName("Should return 401 Unauthorized when unauthenticated")
+        void shouldReturn401WhenNotAuthenticated() throws Exception {
+            SecurityContextHolder.clearContext();
+
+            mockMvc.perform(get("/api/auth/me"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.status", is(401)))
+                    .andExpect(jsonPath("$.error", is("Unauthorized")));
         }
     }
 }
