@@ -1,42 +1,31 @@
 package com.sepisac.backend.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 
+@Schema(description = "Datos del usuario autenticado retornados tras el inicio de sesión")
 public class AuthResponseDTO {
 
-    private String token;
-    private String type;
+    @Schema(description = "Correo electrónico del usuario", example = "usuario@sepisac.com")
     private String email;
+
+    @Schema(description = "Nombre de usuario", example = "johan_admin")
     private String username;
+
+    @Schema(description = "Rol del usuario en el sistema", example = "ROLE_ADMIN_EMPRESA")
     private String role;
+
+    @Schema(description = "Identificador único de la empresa asociada", example = "123e4567-e89b-12d3-a456-426614174000")
     private UUID companyId;
 
     public AuthResponseDTO() {
     }
 
-    public AuthResponseDTO(String token, String type, String email, String username, String role, UUID companyId) {
-        this.token = token;
-        this.type = type;
+    public AuthResponseDTO(String email, String username, String role, UUID companyId) {
         this.email = email;
         this.username = username;
         this.role = role;
         this.companyId = companyId;
-    }
-
-    public String getToken() {
-        return token;
-    }
-
-    public void setToken(String token) {
-        this.token = token;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
     }
 
     public String getEmail() {
