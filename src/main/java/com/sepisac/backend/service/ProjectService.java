@@ -42,7 +42,15 @@ public class ProjectService {
         Sort.Direction sortDirection = Sort.Direction.fromString(direction);
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
 
-        Page<ProjectEntity> projectPage = projectRepository.findByCompanyIdWithFilters(companyId, status, search, pageable);
+        String searchParam = (search != null && !search.trim().isEmpty()) ? "%" + search.trim().toLowerCase() + "%" : null;
+        String statusParam = (status != null && !status.trim().isEmpty()) ? status.trim() : null;
+
+        Page<ProjectEntity> projectPage;
+        if (companyId != null) {
+            projectPage = projectRepository.findByCompanyIdWithFilters(companyId, statusParam, searchParam, pageable);
+        } else {
+            projectPage = projectRepository.findAllWithFiltersGlobal(statusParam, searchParam, pageable);
+        }
 
         List<ProjectResponseDTO> content = projectPage.getContent().stream()
                 .map(this::mapToDTO)

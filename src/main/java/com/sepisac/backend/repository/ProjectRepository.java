@@ -22,9 +22,17 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID> {
 
     @Query("SELECT p FROM ProjectEntity p WHERE p.company.id = :companyId " +
             "AND (:status IS NULL OR p.status = :status) " +
-            "AND (:search IS NULL OR (LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(p.title) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(p.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))")
+            "AND (:search IS NULL OR LOWER(p.code) LIKE :search OR LOWER(p.title) LIKE :search OR LOWER(p.clientName) LIKE :search)")
     Page<ProjectEntity> findByCompanyIdWithFilters(
             @Param("companyId") UUID companyId,
+            @Param("status") String status,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query("SELECT p FROM ProjectEntity p WHERE " +
+            "(:status IS NULL OR p.status = :status) " +
+            "AND (:search IS NULL OR LOWER(p.code) LIKE :search OR LOWER(p.title) LIKE :search OR LOWER(p.clientName) LIKE :search)")
+    Page<ProjectEntity> findAllWithFiltersGlobal(
             @Param("status") String status,
             @Param("search") String search,
             Pageable pageable);

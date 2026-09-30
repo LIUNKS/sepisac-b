@@ -19,15 +19,23 @@ import java.util.UUID;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final com.sepisac.backend.service.ProjectSeedService projectSeedService;
 
     @Autowired
-    public ProjectController(ProjectService projectService) {
+    public ProjectController(ProjectService projectService, com.sepisac.backend.service.ProjectSeedService projectSeedService) {
         this.projectService = projectService;
+        this.projectSeedService = projectSeedService;
     }
 
-    @GetMapping("/company/{companyId}")
-    public ResponseEntity<PageResponseDTO<ProjectResponseDTO>> getProjectsByCompany(
-            @PathVariable UUID companyId,
+    @PostMapping("/seed/{companyId}")
+    public ResponseEntity<Void> seedProjects(@PathVariable UUID companyId) {
+        projectSeedService.seedProjectsData(companyId);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping
+    public ResponseEntity<PageResponseDTO<ProjectResponseDTO>> getProjects(
+            @RequestParam(required = false) UUID companyId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
