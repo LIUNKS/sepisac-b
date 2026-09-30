@@ -58,14 +58,17 @@ public class DashboardService {
         int cotizacionesAprobadasMesAnterior = 0;
 
         for (QuotationEntity q : quotations) {
-            if ("APROBADO".equalsIgnoreCase(q.getStatus())) {
+            if ("APROBADO".equalsIgnoreCase(q.getStatus()) && q.getCreatedAt() != null) {
+                BigDecimal totalAmount = q.getTotalAmount() != null ? q.getTotalAmount() : BigDecimal.ZERO;
+                BigDecimal subtotalCosts = q.getSubtotalCosts() != null ? q.getSubtotalCosts() : BigDecimal.ZERO;
+
                 if (q.getCreatedAt().getMonthValue() == currentMonth && q.getCreatedAt().getYear() == currentYear) {
-                    ingresos = ingresos.add(q.getTotalAmount());
-                    egresos = egresos.add(q.getSubtotalCosts());
+                    ingresos = ingresos.add(totalAmount);
+                    egresos = egresos.add(subtotalCosts);
                     cotizacionesAprobadasMesActual++;
                 } else if (q.getCreatedAt().getMonthValue() == (currentMonth == 1 ? 12 : currentMonth - 1)) {
-                    ingresosMesAnterior = ingresosMesAnterior.add(q.getTotalAmount());
-                    egresosMesAnterior = egresosMesAnterior.add(q.getSubtotalCosts());
+                    ingresosMesAnterior = ingresosMesAnterior.add(totalAmount);
+                    egresosMesAnterior = egresosMesAnterior.add(subtotalCosts);
                     cotizacionesAprobadasMesAnterior++;
                 }
             }
@@ -134,9 +137,11 @@ public class DashboardService {
             BigDecimal mesEgresos = BigDecimal.ZERO;
 
             for (QuotationEntity q : quotations) {
-                if ("APROBADO".equalsIgnoreCase(q.getStatus()) && q.getCreatedAt().getMonthValue() == targetMonth.getMonthValue() && q.getCreatedAt().getYear() == targetMonth.getYear()) {
-                    mesIngresos = mesIngresos.add(q.getTotalAmount());
-                    mesEgresos = mesEgresos.add(q.getSubtotalCosts());
+                if ("APROBADO".equalsIgnoreCase(q.getStatus()) && q.getCreatedAt() != null && q.getCreatedAt().getMonthValue() == targetMonth.getMonthValue() && q.getCreatedAt().getYear() == targetMonth.getYear()) {
+                    BigDecimal totalAmount = q.getTotalAmount() != null ? q.getTotalAmount() : BigDecimal.ZERO;
+                    BigDecimal subtotalCosts = q.getSubtotalCosts() != null ? q.getSubtotalCosts() : BigDecimal.ZERO;
+                    mesIngresos = mesIngresos.add(totalAmount);
+                    mesEgresos = mesEgresos.add(subtotalCosts);
                 }
             }
             // Capitalize first letter of month
@@ -208,7 +213,7 @@ public class DashboardService {
         ProjectResponseDTO dto = new ProjectResponseDTO();
         dto.setId(project.getId());
         dto.setCompanyId(project.getCompany().getId());
-        dto.setQuotationId(project.getQuotation().getId());
+        dto.setQuotationId(project.getQuotation() != null ? project.getQuotation().getId() : null);
         dto.setCode(project.getCode());
         dto.setTitle(project.getTitle());
         dto.setDescription(project.getDescription());
