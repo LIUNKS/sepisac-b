@@ -272,4 +272,38 @@ public class InventoryItemService {
                 entity.getCreatedAt()
         );
     }
+
+    @Transactional
+    public void seedInventoryData(UUID companyId) {
+        CompanyEntity company = companyRepository.findById(companyId)
+            .orElseThrow(() -> new ResourceNotFoundException("Compañía no encontrada"));
+            
+        if (inventoryItemRepository.count() > 0) return;
+
+        Object[][] mocks = {
+            {"HER-042", "Taladro Percutor Bosch", "Almacén A - Estante 2", 1, 3, 450.00},
+            {"HER-089", "Esmeril Angular 7\"", "Almacén A - Estante 4", 0, 2, 320.00},
+            {"EPP-005", "Casco de Seguridad EPP", "Almacén B - Casilleros", 2, 10, 45.50},
+            {"CON-112", "Cable Eléctrico 12 AWG THW", "Almacén C - Bobinas", 450, 100, 2.50},
+            {"HER-015", "Sierra Circular Makita", "Almacén A - Estante 3", 5, 2, 580.00},
+            {"EPP-012", "Lentes de Seguridad 3M", "Almacén B - Casilleros", 15, 20, 12.00},
+            {"CON-045", "Cinta Aislante 3M", "Almacén C - Estante 1", 50, 20, 3.50},
+            {"HER-101", "Amoladora DeWalt", "Almacén A - Estante 1", 3, 2, 410.00},
+            {"EPP-033", "Guantes de Cuero", "Almacén B - Cajas", 5, 15, 25.00},
+            {"CON-201", "Aceite Lubricante 1L", "Almacén C - Líquidos", 8, 10, 35.00}
+        };
+
+        for (Object[] mock : mocks) {
+            InventoryItemEntity item = new InventoryItemEntity();
+            item.setCompany(company);
+            item.setSku((String) mock[0]);
+            item.setName((String) mock[1]);
+            item.setDescription((String) mock[2]); 
+            item.setStockQuantity((Integer) mock[3]);
+            item.setMinStockAlert((Integer) mock[4]);
+            item.setPurchaseCost(new BigDecimal(mock[5].toString()));
+            item.setSalePrice(new BigDecimal(mock[5].toString()).multiply(new BigDecimal("1.3")));
+            inventoryItemRepository.save(item);
+        }
+    }
 }

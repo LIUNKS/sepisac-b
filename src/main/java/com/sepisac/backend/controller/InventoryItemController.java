@@ -33,10 +33,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+import org.springframework.web.bind.annotation.CrossOrigin;
+
 @RestController
 @RequestMapping("/api/inventory/items")
 @Tag(name = "InventoryItems", description = "Endpoints para la gestión del Catálogo Maestro de Ítems de Inventario y Almacén")
 @SecurityRequirement(name = "bearerAuth")
+@CrossOrigin(origins = "*", maxAge = 3600)
 public class InventoryItemController {
 
     private final InventoryItemService inventoryItemService;
@@ -142,5 +145,15 @@ public class InventoryItemController {
             @AuthenticationPrincipal UserPrincipal currentUser) {
         inventoryItemService.deleteItem(id, currentUser);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/seed/{companyId}")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA')")
+    @Operation(summary = "Generar datos de prueba", description = "Genera datos de inventario simulados para pruebas.")
+    public ResponseEntity<Void> seedInventoryData(
+            @PathVariable UUID companyId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        inventoryItemService.seedInventoryData(companyId);
+        return ResponseEntity.ok().build();
     }
 }
