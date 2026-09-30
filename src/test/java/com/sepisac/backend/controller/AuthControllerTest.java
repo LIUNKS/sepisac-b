@@ -78,12 +78,7 @@ class AuthControllerTest {
         @DisplayName("Should return 200 OK with Set-Cookie header and user details without token in body")
         void shouldReturn200WithCookieAndUserDetailsWhenCredentialsAreValid() throws Exception {
             UUID companyId = UUID.randomUUID();
-            AuthResponseDTO userDetails = new AuthResponseDTO(
-                    "usuario@sepisac.com",
-                    "johan_admin",
-                    "ROLE_ADMIN_EMPRESA",
-                    companyId
-            );
+            AuthResponseDTO userDetails = new AuthResponseDTO("usuario@sepisac.com", "johan_admin", "Johan Admin", "ROLE_ADMIN_EMPRESA", companyId);
             AuthResult authResult = new AuthResult("dummy.jwt.token", userDetails);
 
             LoginRequestDTO request = new LoginRequestDTO("usuario@sepisac.com", "miPasswordSeguro123");
@@ -204,6 +199,7 @@ class AuthControllerTest {
                     "usuario@sepisac.com",
                     "johan_admin",
                     "password",
+                    "Johan Admin",
                     companyId,
                     Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")),
                     true
@@ -233,3 +229,4 @@ class AuthControllerTest {
         }
     }
 }
+

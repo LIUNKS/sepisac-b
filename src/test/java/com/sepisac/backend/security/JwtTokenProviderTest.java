@@ -40,6 +40,7 @@ class JwtTokenProviderTest {
                 "admin@sepisac.com",
                 "admin_user",
                 "encodedPassword123",
+                "Admin User",
                 companyId,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")),
                 true
@@ -79,6 +80,7 @@ class JwtTokenProviderTest {
                     "superadmin@sepisac.com",
                     "superadmin",
                     "encodedPassword123",
+                    "Super Admin",
                     null,
                     Collections.singletonList(new SimpleGrantedAuthority("ROLE_SUPERADMIN")),
                     true
@@ -190,6 +192,7 @@ class JwtTokenProviderTest {
                     "superadmin@sepisac.com",
                     "superadmin",
                     "pwd",
+                    "Super Admin",
                     null,
                     Collections.singletonList(new SimpleGrantedAuthority("ROLE_SUPERADMIN")),
                     true
@@ -222,3 +225,4 @@ class JwtTokenProviderTest {
         }
     }
 }
+

@@ -71,12 +71,12 @@ class QuotationServiceTest {
         userId = UUID.randomUUID();
 
         adminEmpresaPrincipal = new UserPrincipal(
-                userId, "admin@empresa.com", "admin_empresa", "hashedpwd", companyId,
+                userId, "admin@empresa.com", "admin_empresa", "hashedpwd", "Test User", companyId,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")), true
         );
 
         superAdminPrincipal = new UserPrincipal(
-                UUID.randomUUID(), "super@sepisac.com", "superadmin", "hashedpwd", null,
+                UUID.randomUUID(), "super@sepisac.com", "superadmin", "hashedpwd", "Test User", null,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_SUPERADMIN")), true
         );
 
@@ -446,3 +446,5 @@ class QuotationServiceTest {
         }
     }
 }
+
+

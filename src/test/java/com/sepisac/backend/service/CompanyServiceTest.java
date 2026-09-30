@@ -62,8 +62,7 @@ class CompanyServiceTest {
                 superAdminId,
                 "superadmin@sepisac.com",
                 "superadmin",
-                "hashedpwd",
-                null,
+                "hashedpwd", "Test User", null,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_SUPERADMIN")),
                 true
         );
@@ -72,8 +71,7 @@ class CompanyServiceTest {
                 adminEmpresaId,
                 "admin@empresa.com",
                 "admin_empresa",
-                "hashedpwd",
-                companyId,
+                "hashedpwd", "Test User", companyId,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")),
                 true
         );
@@ -268,3 +266,5 @@ class CompanyServiceTest {
         }
     }
 }
+
+

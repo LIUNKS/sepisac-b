@@ -78,12 +78,12 @@ class EmployeeServiceTest {
         adminEmpresaId = UUID.randomUUID();
 
         superAdminPrincipal = new UserPrincipal(
-                superAdminId, "superadmin@sepisac.com", "superadmin", "hashedpwd", null,
+                superAdminId, "superadmin@sepisac.com", "superadmin", "hashedpwd", "Test User", null,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_SUPERADMIN")), true
         );
 
         adminEmpresaPrincipal = new UserPrincipal(
-                adminEmpresaId, "admin@empresa.com", "admin_empresa", "hashedpwd", companyId,
+                adminEmpresaId, "admin@empresa.com", "admin_empresa", "hashedpwd", "Test User", companyId,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")), true
         );
 
@@ -176,7 +176,7 @@ class EmployeeServiceTest {
         void shouldThrowWhenAccessingDifferentCompany() {
             UUID otherCompanyId = UUID.randomUUID();
             UserPrincipal otherCompanyUser = new UserPrincipal(
-                    UUID.randomUUID(), "other@empresa.com", "other", "pwd", otherCompanyId,
+                    UUID.randomUUID(), "other@empresa.com", "other", "pwd", "Test User", otherCompanyId,
                     Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")), true
             );
 
@@ -241,3 +241,5 @@ class EmployeeServiceTest {
         }
     }
 }
+
+
