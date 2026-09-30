@@ -18,14 +18,36 @@ public class AuthResponseDTO {
     @Schema(description = "Identificador único de la empresa asociada", example = "123e4567-e89b-12d3-a456-426614174000")
     private UUID companyId;
 
+    @Schema(description = "Indica si se requiere completar el segundo factor de autenticación", example = "false")
+    private Boolean twoFactorRequired;
+
+    @Schema(description = "Indica si el usuario tiene activo el segundo factor de autenticación", example = "false")
+    private Boolean twoFactorEnabled;
+
     public AuthResponseDTO() {
+        this.twoFactorRequired = false;
+        this.twoFactorEnabled = false;
     }
 
     public AuthResponseDTO(String email, String username, String role, UUID companyId) {
+        this(email, username, role, companyId, false, false);
+    }
+
+    public AuthResponseDTO(String email, String username, String role, UUID companyId, Boolean twoFactorRequired) {
+        this(email, username, role, companyId, twoFactorRequired, false);
+    }
+
+    public AuthResponseDTO(String email, String username, String role, UUID companyId, Boolean twoFactorRequired, Boolean twoFactorEnabled) {
         this.email = email;
         this.username = username;
         this.role = role;
         this.companyId = companyId;
+        this.twoFactorRequired = twoFactorRequired != null ? twoFactorRequired : false;
+        this.twoFactorEnabled = twoFactorEnabled != null ? twoFactorEnabled : false;
+    }
+
+    public static AuthResponseDTO twoFactorRequired(String email) {
+        return new AuthResponseDTO(email, null, null, null, true, true);
     }
 
     public String getEmail() {
@@ -58,5 +80,21 @@ public class AuthResponseDTO {
 
     public void setCompanyId(UUID companyId) {
         this.companyId = companyId;
+    }
+
+    public Boolean getTwoFactorRequired() {
+        return twoFactorRequired;
+    }
+
+    public void setTwoFactorRequired(Boolean twoFactorRequired) {
+        this.twoFactorRequired = twoFactorRequired;
+    }
+
+    public Boolean getTwoFactorEnabled() {
+        return twoFactorEnabled;
+    }
+
+    public void setTwoFactorEnabled(Boolean twoFactorEnabled) {
+        this.twoFactorEnabled = twoFactorEnabled;
     }
 }
