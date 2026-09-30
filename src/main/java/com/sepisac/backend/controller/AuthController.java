@@ -4,6 +4,8 @@ import com.sepisac.backend.dto.AuthResponseDTO;
 import com.sepisac.backend.dto.AuthResult;
 import com.sepisac.backend.dto.ErrorResponseDTO;
 import com.sepisac.backend.dto.LoginRequestDTO;
+import com.sepisac.backend.dto.Toggle2FaResponseDTO;
+import com.sepisac.backend.dto.Verify2FaRequestDTO;
 import com.sepisac.backend.security.AuthCookieProvider;
 import com.sepisac.backend.security.UserPrincipal;
 import com.sepisac.backend.service.AuthService;
@@ -29,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Autenticación", description = "Endpoints para inicio de sesión, cierre de sesión y consulta del usuario autenticado mediante cookies HttpOnly")
+@Tag(name = "Autenticación", description = "Endpoints para inicio de sesión, verificación 2FA, cierre de sesión y gestión de sesión mediante cookies HttpOnly")
 public class AuthController {
 
     private final AuthService authService;
@@ -42,19 +44,56 @@ public class AuthController {
 
     @PostMapping("/login")
     @SecurityRequirements
-    @Operation(summary = "Iniciar sesión", description = "Autentica las credenciales del usuario, emite una cookie HttpOnly con el token JWT y retorna los datos del perfil.")
+    @Operation(summary = "Iniciar sesión", description = "Autentica credenciales. Si 2FA está deshabilitado emite cookie HttpOnly; si está habilitado solicita código.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Autenticación exitosa. Retorna la cookie en Set-Cookie y los datos del usuario en el cuerpo.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthResponseDTO.class))),
+            @ApiResponse(responseCode = "200", description = "Autenticación exitosa o requerimiento de 2FA.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthResponseDTO.class))),
             @ApiResponse(responseCode = "400", description = "Petición inválida (formato de correo erróneo o campos obligatorios vacíos).", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponseDTO.class))),
             @ApiResponse(responseCode = "401", description = "Credenciales incorrectas o cuenta de usuario inactiva.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponseDTO.class)))
     })
     public ResponseEntity<AuthResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
         AuthResult authResult = authService.login(request);
+        if (authResult.token() == null) {
+            return ResponseEntity.ok(authResult.responseDTO());
+        }
+
+        ResponseCookie cookie = authCookieProvider.createAuthCookie(authResult.token());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(authResult.responseDTO());
+    }
+
+    @PostMapping("/verify-2fa")
+    @SecurityRequirements
+    @Operation(summary = "Verificar código 2FA", description = "Valida el código de 6 dígitos enviado por correo para completar la autenticación y emitir la cookie de sesión.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Verificación 2FA exitosa. Retorna cookie de sesión y datos del perfil.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Formato de correo o código inválido.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "401", description = "Código incorrecto, expirado o usuario no autenticado.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "409", description = "El usuario no tiene la autenticación 2FA activada.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<AuthResponseDTO> verify2Fa(@Valid @RequestBody Verify2FaRequestDTO request) {
+        AuthResult authResult = authService.verify2Fa(request);
         ResponseCookie cookie = authCookieProvider.createAuthCookie(authResult.token());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(authResult.responseDTO());
+    }
+
+    @PostMapping("/2fa/toggle")
+    @Operation(summary = "Alternar estado de 2FA", description = "Activa o desactiva el segundo factor de autenticación para el usuario en sesión actual.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Estado 2FA alternado con éxito.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Toggle2FaResponseDTO.class))),
+            @ApiResponse(responseCode = "401", description = "No autenticado o sesión no encontrada.", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<Toggle2FaResponseDTO> toggle2Fa() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            throw new BadCredentialsException("No autenticado o sesión no encontrada");
+        }
+
+        Toggle2FaResponseDTO response = authService.toggle2Fa(principal.getId());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/logout")
@@ -89,6 +128,7 @@ public class AuthController {
                 principal.getRole(),
                 principal.getCompanyId()
         );
+        responseDTO.setTwoFactorEnabled(principal.isTwoFactorEnabled());
 
         return ResponseEntity.ok(responseDTO);
     }
