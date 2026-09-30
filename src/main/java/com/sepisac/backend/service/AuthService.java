@@ -33,6 +33,7 @@ public class AuthService {
         AuthResponseDTO responseDTO = new AuthResponseDTO(
                 userPrincipal.getEmail(),
                 userPrincipal.getUsername(),
+                userPrincipal.getFullName(),
                 userPrincipal.getRole(),
                 userPrincipal.getCompanyId()
         );
