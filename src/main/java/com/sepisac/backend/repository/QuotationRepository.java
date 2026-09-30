@@ -41,4 +41,14 @@ public interface QuotationRepository extends JpaRepository<QuotationEntity, UUID
             @Param("serviceType") String serviceType,
             @Param("search") String search,
             Pageable pageable);
+
+    @Query("SELECT q FROM QuotationEntity q WHERE " +
+            "(:status IS NULL OR q.status = :status) " +
+            "AND (:serviceType IS NULL OR q.serviceType = :serviceType) " +
+            "AND (:search IS NULL OR (LOWER(q.quotationNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(q.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))")
+    Page<QuotationEntity> findAllWithFiltersGlobal(
+            @Param("status") String status,
+            @Param("serviceType") String serviceType,
+            @Param("search") String search,
+            Pageable pageable);
 }

@@ -183,7 +183,7 @@ public class QuotationService {
         if (targetCompanyId != null) {
             pageResult = quotationRepository.findByCompanyIdWithFilters(targetCompanyId, statusParam, serviceTypeParam, searchParam, pageable);
         } else {
-            pageResult = quotationRepository.findAllWithFilters(null, statusParam, serviceTypeParam, searchParam, pageable);
+            pageResult = quotationRepository.findAllWithFiltersGlobal(statusParam, serviceTypeParam, searchParam, pageable);
         }
 
         List<QuotationResponseDTO> content = pageResult.getContent().stream()
