@@ -86,6 +86,7 @@ public class AuthController {
         AuthResponseDTO responseDTO = new AuthResponseDTO(
                 principal.getEmail(),
                 principal.getUsername(),
+                principal.getFullName(),
                 principal.getRole(),
                 principal.getCompanyId()
         );

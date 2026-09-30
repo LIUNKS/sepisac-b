@@ -59,6 +59,7 @@ class AuthServiceTest {
                 "usuario@sepisac.com",
                 "johan_admin",
                 "encodedPassword",
+                "Johan Admin",
                 companyId,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")),
                 true
@@ -126,3 +127,5 @@ class AuthServiceTest {
         }
     }
 }
+
+

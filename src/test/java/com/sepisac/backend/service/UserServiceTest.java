@@ -84,8 +84,7 @@ class UserServiceTest {
                 adminEmpresaUserId,
                 "admin@empresa.com",
                 "admin.empresa",
-                "encodedPassword",
-                companyId,
+                "encodedPassword", "Test User", companyId,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")),
                 true
         );
@@ -94,8 +93,7 @@ class UserServiceTest {
                 superAdminUserId,
                 "superadmin@sepisac.com",
                 "superadmin",
-                "encodedPassword",
-                null,
+                "encodedPassword", "Test User", null,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_SUPERADMIN")),
                 true
         );
@@ -576,3 +574,5 @@ class UserServiceTest {
         }
     }
 }
+
+
