@@ -5,6 +5,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sepisac.backend.dto.AuthResponseDTO;
 import com.sepisac.backend.dto.AuthResult;
 import com.sepisac.backend.dto.LoginRequestDTO;
+import com.sepisac.backend.dto.Toggle2FaResponseDTO;
+import com.sepisac.backend.dto.Verify2FaRequestDTO;
 import com.sepisac.backend.exception.GlobalExceptionHandler;
 import com.sepisac.backend.security.AuthCookieProvider;
 import com.sepisac.backend.security.UserPrincipal;
@@ -111,7 +113,27 @@ class AuthControllerTest {
                     .andExpect(jsonPath("$.role", is("ROLE_ADMIN_EMPRESA")))
                     .andExpect(jsonPath("$.companyId", is(companyId.toString())))
                     .andExpect(jsonPath("$.token").doesNotExist())
-                    .andExpect(jsonPath("$.type").doesNotExist());
+                    .andExpect(jsonPath("$.type").doesNotExist())
+                    .andExpect(jsonPath("$.twoFactorRequired", is(false)));
+        }
+
+        @Test
+        @DisplayName("Should return 200 OK without Set-Cookie when 2FA is required")
+        void shouldReturn200WithoutCookieWhenTwoFactorRequired() throws Exception {
+            AuthResponseDTO twoFaResponse = AuthResponseDTO.twoFactorRequired("usuario@sepisac.com");
+            AuthResult authResult = new AuthResult(null, twoFaResponse);
+
+            LoginRequestDTO request = new LoginRequestDTO("usuario@sepisac.com", "miPasswordSeguro123");
+
+            when(authService.login(any(LoginRequestDTO.class))).thenReturn(authResult);
+
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE))
+                    .andExpect(jsonPath("$.email", is("usuario@sepisac.com")))
+                    .andExpect(jsonPath("$.twoFactorRequired", is(true)));
         }
 
         @Test
@@ -230,6 +252,118 @@ class AuthControllerTest {
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.status", is(401)))
                     .andExpect(jsonPath("$.error", is("Unauthorized")));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/auth/verify-2fa")
+    class Verify2FaEndpointTests {
+
+        @Test
+        @DisplayName("Should return 200 OK with Set-Cookie header and user details when code is valid")
+        void shouldReturn200WithCookieWhenCodeIsValid() throws Exception {
+            UUID companyId = UUID.randomUUID();
+            AuthResponseDTO userDetails = new AuthResponseDTO(
+                    "usuario@sepisac.com",
+                    "johan_admin",
+                    "ROLE_ADMIN_EMPRESA",
+                    companyId,
+                    false
+            );
+            AuthResult authResult = new AuthResult("valid.2fa.jwt.token", userDetails);
+            Verify2FaRequestDTO request = new Verify2FaRequestDTO("usuario@sepisac.com", "123456");
+
+            ResponseCookie sampleCookie = ResponseCookie.from("jwt_token", "valid.2fa.jwt.token")
+                    .httpOnly(true)
+                    .secure(false)
+                    .path("/")
+                    .maxAge(86400)
+                    .sameSite("Lax")
+                    .build();
+
+            when(authService.verify2Fa(any(Verify2FaRequestDTO.class))).thenReturn(authResult);
+            when(authCookieProvider.createAuthCookie("valid.2fa.jwt.token")).thenReturn(sampleCookie);
+
+            mockMvc.perform(post("/api/auth/verify-2fa")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(header().exists(HttpHeaders.SET_COOKIE))
+                    .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("jwt_token=valid.2fa.jwt.token")))
+                    .andExpect(jsonPath("$.email", is("usuario@sepisac.com")))
+                    .andExpect(jsonPath("$.username", is("johan_admin")))
+                    .andExpect(jsonPath("$.twoFactorRequired", is(false)));
+        }
+
+        @Test
+        @DisplayName("Should return 400 Bad Request when 2FA code is not 6 digits")
+        void shouldReturn400WhenCodeIsInvalidFormat() throws Exception {
+            Verify2FaRequestDTO request = new Verify2FaRequestDTO("usuario@sepisac.com", "123");
+
+            mockMvc.perform(post("/api/auth/verify-2fa")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status", is(400)))
+                    .andExpect(jsonPath("$.error", is("Bad Request")));
+        }
+
+        @Test
+        @DisplayName("Should return 401 Unauthorized when code is invalid or expired")
+        void shouldReturn401WhenCodeIsWrong() throws Exception {
+            Verify2FaRequestDTO request = new Verify2FaRequestDTO("usuario@sepisac.com", "999999");
+
+            when(authService.verify2Fa(any(Verify2FaRequestDTO.class)))
+                    .thenThrow(new BadCredentialsException("Código 2FA incorrecto"));
+
+            mockMvc.perform(post("/api/auth/verify-2fa")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.status", is(401)))
+                    .andExpect(jsonPath("$.message", is("Credenciales inválidas")));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/auth/2fa/toggle")
+    class Toggle2FaEndpointTests {
+
+        @Test
+        @DisplayName("Should return 200 OK with Toggle2FaResponseDTO when user is authenticated")
+        void shouldReturn200WhenAuthenticated() throws Exception {
+            UUID userId = UUID.randomUUID();
+            UserPrincipal principal = new UserPrincipal(
+                    userId,
+                    "usuario@sepisac.com",
+                    "johan_admin",
+                    "password",
+                    UUID.randomUUID(),
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")),
+                    true
+            );
+
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            Toggle2FaResponseDTO responseDTO = new Toggle2FaResponseDTO(true, "Autenticación de dos factores activada");
+            when(authService.toggle2Fa(userId)).thenReturn(responseDTO);
+
+            mockMvc.perform(post("/api/auth/2fa/toggle"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.twoFactorEnabled", is(true)))
+                    .andExpect(jsonPath("$.message", is("Autenticación de dos factores activada")));
+        }
+
+        @Test
+        @DisplayName("Should return 401 Unauthorized when user is not authenticated")
+        void shouldReturn401WhenNotAuthenticatedOnToggle() throws Exception {
+            SecurityContextHolder.clearContext();
+
+            mockMvc.perform(post("/api/auth/2fa/toggle"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.status", is(401)));
         }
     }
 }
