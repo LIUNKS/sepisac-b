@@ -17,6 +17,7 @@ public class UserPrincipal implements UserDetails {
     private final String email;
     private final String username;
     private final String password;
+    private final String fullName;
     private final UUID companyId;
     private final Collection<? extends GrantedAuthority> authorities;
     private final boolean isActive;
@@ -25,6 +26,7 @@ public class UserPrincipal implements UserDetails {
                          String email,
                          String username,
                          String password,
+                         String fullName,
                          UUID companyId,
                          Collection<? extends GrantedAuthority> authorities,
                          boolean isActive) {
@@ -32,6 +34,7 @@ public class UserPrincipal implements UserDetails {
         this.email = email;
         this.username = username;
         this.password = password;
+        this.fullName = fullName;
         this.companyId = companyId;
         this.authorities = authorities != null ? authorities : Collections.emptyList();
         this.isActive = isActive;
@@ -53,6 +56,7 @@ public class UserPrincipal implements UserDetails {
                 user.getEmail(),
                 user.getUsername(),
                 user.getPasswordHash(),
+                user.getFullName(),
                 companyId,
                 authorities,
                 active
@@ -65,6 +69,10 @@ public class UserPrincipal implements UserDetails {
 
     public String getEmail() {
         return email;
+    }
+    
+    public String getFullName() {
+        return fullName;
     }
 
     public UUID getCompanyId() {

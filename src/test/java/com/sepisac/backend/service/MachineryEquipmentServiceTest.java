@@ -64,7 +64,7 @@ class MachineryEquipmentServiceTest {
         adminEmpresaId = UUID.randomUUID();
 
         adminEmpresaPrincipal = new UserPrincipal(
-                adminEmpresaId, "admin@empresa.com", "admin_empresa", "hashedpwd", companyId,
+                adminEmpresaId, "admin@empresa.com", "admin_empresa", "hashedpwd", "Test User", companyId,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN_EMPRESA")), true
         );
 
@@ -166,3 +166,5 @@ class MachineryEquipmentServiceTest {
         }
     }
 }
+
+
