@@ -20,18 +20,17 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItemEnti
 
     @Query("SELECT i FROM InventoryItemEntity i WHERE i.company.id = :companyId " +
             "AND (:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
-            "AND (:search IS NULL OR (LOWER(i.sku) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(i.name) LIKE LOWER(CONCAT('%', :search, '%'))))")
+            "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)")
     Page<InventoryItemEntity> findByCompanyIdWithFilters(
             @Param("companyId") UUID companyId,
             @Param("lowStock") Boolean lowStock,
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT i FROM InventoryItemEntity i WHERE (:companyId IS NULL OR i.company.id = :companyId) " +
-            "AND (:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
-            "AND (:search IS NULL OR (LOWER(i.sku) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(i.name) LIKE LOWER(CONCAT('%', :search, '%'))))")
-    Page<InventoryItemEntity> findAllWithFilters(
-            @Param("companyId") UUID companyId,
+    @Query("SELECT i FROM InventoryItemEntity i WHERE " +
+            "(:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
+            "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)")
+    Page<InventoryItemEntity> findAllWithFiltersGlobal(
             @Param("lowStock") Boolean lowStock,
             @Param("search") String search,
             Pageable pageable);

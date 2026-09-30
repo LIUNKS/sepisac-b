@@ -115,13 +115,13 @@ public class InventoryItemService {
         }
 
         Pageable pageable = createPageable(page, size, sort);
-        String searchParam = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+        String searchParam = (search != null && !search.trim().isEmpty()) ? "%" + search.trim().toLowerCase() + "%" : null;
 
         Page<InventoryItemEntity> pageResult;
         if (targetCompanyId != null) {
             pageResult = inventoryItemRepository.findByCompanyIdWithFilters(targetCompanyId, lowStock, searchParam, pageable);
         } else {
-            pageResult = inventoryItemRepository.findAllWithFilters(null, lowStock, searchParam, pageable);
+            pageResult = inventoryItemRepository.findAllWithFiltersGlobal(lowStock, searchParam, pageable);
         }
 
         List<InventoryItemResponseDTO> content = pageResult.getContent().stream()
