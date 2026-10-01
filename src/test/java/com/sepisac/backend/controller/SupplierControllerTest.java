@@ -154,5 +154,17 @@ class SupplierControllerTest {
             mockMvc.perform(delete("/api/suppliers/{id}", testSupplierId))
                     .andExpect(status().isNoContent());
         }
+
+        @Test
+        @DisplayName("GET /api/v1/suppliers/check-ruc should return true when RUC exists")
+        void shouldCheckRucExists() throws Exception {
+            when(supplierService.checkRucExists(eq("20100010724"), eq(testCompanyId), any())).thenReturn(true);
+
+            mockMvc.perform(get("/api/v1/suppliers/check-ruc")
+                            .param("ruc", "20100010724")
+                            .param("companyId", testCompanyId.toString()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.exists", is(true)));
+        }
     }
 }

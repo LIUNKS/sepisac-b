@@ -21,6 +21,15 @@ public interface QuotationRepository extends JpaRepository<QuotationEntity, UUID
     long countByCompanyId(UUID companyId);
 
     @Query("SELECT q FROM QuotationEntity q WHERE q.company.id = :companyId " +
+           "AND q.status = 'APROBADA' " +
+           "AND (cast(:from as java.time.OffsetDateTime) IS NULL OR q.createdAt >= :from) " +
+           "AND (cast(:to as java.time.OffsetDateTime) IS NULL OR q.createdAt <= :to)")
+    List<QuotationEntity> findApprovedQuotationsInRange(
+            @Param("companyId") UUID companyId,
+            @Param("from") java.time.OffsetDateTime from,
+            @Param("to") java.time.OffsetDateTime to);
+
+    @Query("SELECT q FROM QuotationEntity q WHERE q.company.id = :companyId " +
             "AND (:status IS NULL OR q.status = :status) " +
             "AND (:serviceType IS NULL OR q.serviceType = :serviceType) " +
             "AND (:search IS NULL OR (LOWER(q.quotationNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(q.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))")

@@ -11,12 +11,18 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.Immutable;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
 @Entity
 @Table(name = "audit_logs")
+@Immutable
 public class AuditLogEntity {
 
     @Id
@@ -25,21 +31,32 @@ public class AuditLogEntity {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "company_id")
+    @JoinColumn(name = "company_id", updatable = false)
     private CompanyEntity company;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", updatable = false)
     private UserEntity user;
 
-    @Column(name = "action", nullable = false, length = 50)
+    @Column(name = "action", nullable = false, length = 50, updatable = false)
     private String action;
 
-    @Column(name = "module_affected", nullable = false, length = 50)
+    @Column(name = "module_affected", nullable = false, length = 50, updatable = false)
     private String moduleAffected;
 
-    @Column(name = "description", columnDefinition = "TEXT")
+    @Column(name = "entity_id", updatable = false)
+    private UUID entityId;
+
+    @Column(name = "description", columnDefinition = "TEXT", updatable = false)
     private String description;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "old_values", columnDefinition = "jsonb", updatable = false)
+    private Map<String, Object> oldValues;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "new_values", columnDefinition = "jsonb", updatable = false)
+    private Map<String, Object> newValues;
 
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
@@ -94,12 +111,36 @@ public class AuditLogEntity {
         this.moduleAffected = moduleAffected;
     }
 
+    public UUID getEntityId() {
+        return entityId;
+    }
+
+    public void setEntityId(UUID entityId) {
+        this.entityId = entityId;
+    }
+
     public String getDescription() {
         return description;
     }
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Map<String, Object> getOldValues() {
+        return oldValues;
+    }
+
+    public void setOldValues(Map<String, Object> oldValues) {
+        this.oldValues = oldValues;
+    }
+
+    public Map<String, Object> getNewValues() {
+        return newValues;
+    }
+
+    public void setNewValues(Map<String, Object> newValues) {
+        this.newValues = newValues;
     }
 
     public OffsetDateTime getCreatedAt() {

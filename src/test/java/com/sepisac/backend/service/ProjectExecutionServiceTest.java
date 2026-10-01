@@ -61,6 +61,9 @@ class ProjectExecutionServiceTest {
     @Mock
     private ProjectInventoryConsumptionRepository projectInventoryConsumptionRepository;
 
+    @Mock
+    private PurchaseOrderService purchaseOrderService;
+
     @InjectMocks
     private ProjectExecutionService projectExecutionService;
 

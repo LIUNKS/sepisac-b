@@ -18,6 +18,8 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID> {
 
     List<ProjectEntity> findByCompanyId(UUID companyId);
 
+    List<ProjectEntity> findByQuotationId(UUID quotationId);
+
     long countByCompanyId(UUID companyId);
 
     @Query("SELECT p FROM ProjectEntity p WHERE p.company.id = :companyId " +
