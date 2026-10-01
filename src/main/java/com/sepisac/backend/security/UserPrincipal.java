@@ -21,6 +21,17 @@ public class UserPrincipal implements UserDetails {
     private final UUID companyId;
     private final Collection<? extends GrantedAuthority> authorities;
     private final boolean isActive;
+    private final boolean twoFactorEnabled;
+
+    public UserPrincipal(UUID id,
+                         String email,
+                         String username,
+                         String password,
+                         UUID companyId,
+                         Collection<? extends GrantedAuthority> authorities,
+                         boolean isActive) {
+        this(id, email, username, password, null, companyId, authorities, isActive, false);
+    }
 
     public UserPrincipal(UUID id,
                          String email,
@@ -30,6 +41,29 @@ public class UserPrincipal implements UserDetails {
                          UUID companyId,
                          Collection<? extends GrantedAuthority> authorities,
                          boolean isActive) {
+        this(id, email, username, password, fullName, companyId, authorities, isActive, false);
+    }
+
+    public UserPrincipal(UUID id,
+                         String email,
+                         String username,
+                         String password,
+                         UUID companyId,
+                         Collection<? extends GrantedAuthority> authorities,
+                         boolean isActive,
+                         boolean twoFactorEnabled) {
+        this(id, email, username, password, null, companyId, authorities, isActive, twoFactorEnabled);
+    }
+
+    public UserPrincipal(UUID id,
+                         String email,
+                         String username,
+                         String password,
+                         String fullName,
+                         UUID companyId,
+                         Collection<? extends GrantedAuthority> authorities,
+                         boolean isActive,
+                         boolean twoFactorEnabled) {
         this.id = id;
         this.email = email;
         this.username = username;
@@ -38,6 +72,7 @@ public class UserPrincipal implements UserDetails {
         this.companyId = companyId;
         this.authorities = authorities != null ? authorities : Collections.emptyList();
         this.isActive = isActive;
+        this.twoFactorEnabled = twoFactorEnabled;
     }
 
     public static UserPrincipal create(UserEntity user) {
@@ -50,6 +85,7 @@ public class UserPrincipal implements UserDetails {
 
         UUID companyId = user.getCompany() != null ? user.getCompany().getId() : null;
         boolean active = user.getIsActive() != null && user.getIsActive();
+        boolean twoFactor = Boolean.TRUE.equals(user.getTwoFactorEnabled());
 
         return new UserPrincipal(
                 user.getId(),
@@ -59,8 +95,13 @@ public class UserPrincipal implements UserDetails {
                 user.getFullName(),
                 companyId,
                 authorities,
-                active
+                active,
+                twoFactor
         );
+    }
+
+    public boolean isTwoFactorEnabled() {
+        return twoFactorEnabled;
     }
 
     public UUID getId() {

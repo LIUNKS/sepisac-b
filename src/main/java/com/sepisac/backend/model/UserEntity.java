@@ -56,6 +56,15 @@ public class UserEntity {
     @Column(name = "is_deleted")
     private Boolean isDeleted;
 
+    @Column(name = "two_factor_enabled")
+    private Boolean twoFactorEnabled;
+
+    @Column(name = "two_factor_code", length = 10)
+    private String twoFactorCode;
+
+    @Column(name = "two_factor_expires_at")
+    private OffsetDateTime twoFactorExpiresAt;
+
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
@@ -79,6 +88,9 @@ public class UserEntity {
         }
         if (this.isDeleted == null) {
             this.isDeleted = false;
+        }
+        if (this.twoFactorEnabled == null) {
+            this.twoFactorEnabled = false;
         }
     }
 
@@ -159,7 +171,32 @@ public class UserEntity {
         this.isDeleted = isDeleted;
     }
 
+    public Boolean getTwoFactorEnabled() {
+        return twoFactorEnabled;
+    }
+
+    public void setTwoFactorEnabled(Boolean twoFactorEnabled) {
+        this.twoFactorEnabled = twoFactorEnabled;
+    }
+
+    public String getTwoFactorCode() {
+        return twoFactorCode;
+    }
+
+    public void setTwoFactorCode(String twoFactorCode) {
+        this.twoFactorCode = twoFactorCode;
+    }
+
+    public OffsetDateTime getTwoFactorExpiresAt() {
+        return twoFactorExpiresAt;
+    }
+
+    public void setTwoFactorExpiresAt(OffsetDateTime twoFactorExpiresAt) {
+        this.twoFactorExpiresAt = twoFactorExpiresAt;
+    }
+
     public OffsetDateTime getCreatedAt() {
+
         return createdAt;
     }
 
