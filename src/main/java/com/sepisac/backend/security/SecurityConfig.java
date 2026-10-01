@@ -34,7 +34,7 @@ public class SecurityConfig {
     public SecurityConfig(
             JwtTokenFilter jwtTokenFilter,
             JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
-            @Value("${cors.allowed-origins}") String allowedOriginsStr) {
+            @Value("${cors.allowed-origins:http://localhost:5173,https://sepisac.vercel.app}") String allowedOriginsStr) {
         this.jwtTokenFilter = jwtTokenFilter;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
 
@@ -43,6 +43,9 @@ public class SecurityConfig {
             for (String origin : allowedOriginsStr.split(",")) {
                 if (origin != null) {
                     String trimmed = origin.trim();
+                    while (trimmed.endsWith("/")) {
+                        trimmed = trimmed.substring(0, trimmed.length() - 1);
+                    }
                     if (!trimmed.isEmpty()) {
                         origins.add(trimmed);
                     }
@@ -91,7 +94,9 @@ public class SecurityConfig {
                                 "/error",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/docs",
+                                "/docs/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
