@@ -19,14 +19,14 @@ public interface SupplierRepository extends JpaRepository<SupplierEntity, UUID> 
     List<SupplierEntity> findByCompanyId(UUID companyId);
 
     @Query("SELECT s FROM SupplierEntity s WHERE s.company.id = :companyId " +
-            "AND (:search IS NULL OR (LOWER(s.ruc) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(s.businessName) LIKE LOWER(CONCAT('%', :search, '%'))))")
+            "AND (:search IS NULL OR (LOWER(s.ruc) LIKE LOWER(CONCAT('%', cast(:search as string), '%')) OR LOWER(s.businessName) LIKE LOWER(CONCAT('%', cast(:search as string), '%'))))")
     Page<SupplierEntity> findByCompanyIdWithFilters(
             @Param("companyId") UUID companyId,
             @Param("search") String search,
             Pageable pageable);
 
     @Query("SELECT s FROM SupplierEntity s WHERE (:companyId IS NULL OR s.company.id = :companyId) " +
-            "AND (:search IS NULL OR (LOWER(s.ruc) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(s.businessName) LIKE LOWER(CONCAT('%', :search, '%'))))")
+            "AND (:search IS NULL OR (LOWER(s.ruc) LIKE LOWER(CONCAT('%', cast(:search as string), '%')) OR LOWER(s.businessName) LIKE LOWER(CONCAT('%', cast(:search as string), '%'))))")
     Page<SupplierEntity> findAllWithFilters(
             @Param("companyId") UUID companyId,
             @Param("search") String search,
