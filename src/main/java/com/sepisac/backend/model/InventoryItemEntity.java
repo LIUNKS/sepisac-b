@@ -62,6 +62,7 @@ public class InventoryItemEntity {
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
+    @jakarta.persistence.Version
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
 

@@ -102,7 +102,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
-    @ExceptionHandler({DuplicateResourceException.class, BusinessRuleException.class, IllegalStateException.class})
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponseDTO> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        ErrorResponseDTO error = new ErrorResponseDTO(
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler({DuplicateResourceException.class, BusinessRuleException.class, IllegalStateException.class, org.springframework.dao.OptimisticLockingFailureException.class})
     public ResponseEntity<ErrorResponseDTO> handleConflictExceptions(RuntimeException ex, HttpServletRequest request) {
         ErrorResponseDTO error = new ErrorResponseDTO(
                 HttpStatus.CONFLICT.value(),
