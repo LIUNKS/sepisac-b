@@ -34,4 +34,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItemEnti
             @Param("lowStock") Boolean lowStock,
             @Param("search") String search,
             Pageable pageable);
+
+    @Query("SELECT i FROM InventoryItemEntity i WHERE i.company.id = :companyId " +
+            "AND i.stockQuantity <= i.minStockAlert " +
+            "AND (i.isDeleted = false OR i.isDeleted IS NULL)")
+    List<InventoryItemEntity> findCriticalItemsByCompanyId(@Param("companyId") UUID companyId);
 }

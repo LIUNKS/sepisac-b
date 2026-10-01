@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/suppliers")
+@RequestMapping({"/api/v1/suppliers", "/api/suppliers"})
 @Tag(name = "Suppliers", description = "Endpoints para la gestión del Catálogo de Proveedores de la Empresa")
 @SecurityRequirement(name = "bearerAuth")
 public class SupplierController {
@@ -93,6 +93,21 @@ public class SupplierController {
             @AuthenticationPrincipal UserPrincipal currentUser) {
         PageResponseDTO<SupplierResponseDTO> result = supplierService.querySuppliers(filter, currentUser);
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/check-ruc")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN')")
+    @Operation(summary = "Verificar existencia de RUC", description = "Verifica si un RUC ya se encuentra registrado para la empresa.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Verificación realizada exitosamente"),
+            @ApiResponse(responseCode = "403", description = "Permiso denegado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<java.util.Map<String, Boolean>> checkRuc(
+            @RequestParam String ruc,
+            @RequestParam(required = false) UUID companyId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        boolean exists = supplierService.checkRucExists(ruc, companyId, currentUser);
+        return ResponseEntity.ok(java.util.Map.of("exists", exists));
     }
 
     @GetMapping("/{id}")

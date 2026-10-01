@@ -20,6 +20,7 @@ import java.util.UUID;
 @Service
 public class ProjectExecutionService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ProjectExecutionService.class);
     private static final Set<String> ALLOWED_STATUSES = Set.of("PENDIENTE", "EN_PROCESO", "COMPLETADO", "CANCELADO");
 
     private final ProjectRepository projectRepository;
@@ -33,6 +34,7 @@ public class ProjectExecutionService {
     private final ProjectMachineryAssignmentRepository projectMachineryAssignmentRepository;
     private final ProjectInventoryConsumptionRepository projectInventoryConsumptionRepository;
     private final UserRepository userRepository;
+    private final PurchaseOrderService purchaseOrderService;
 
     @Autowired
     public ProjectExecutionService(
@@ -46,7 +48,8 @@ public class ProjectExecutionService {
             ProjectAssignmentRepository projectAssignmentRepository,
             ProjectMachineryAssignmentRepository projectMachineryAssignmentRepository,
             ProjectInventoryConsumptionRepository projectInventoryConsumptionRepository,
-            @Autowired(required = false) UserRepository userRepository) {
+            @Autowired(required = false) UserRepository userRepository,
+            @Autowired(required = false) @org.springframework.context.annotation.Lazy PurchaseOrderService purchaseOrderService) {
         this.projectRepository = projectRepository;
         this.quotationRepository = quotationRepository;
         this.quotationDetailRepository = quotationDetailRepository;
@@ -58,6 +61,25 @@ public class ProjectExecutionService {
         this.projectMachineryAssignmentRepository = projectMachineryAssignmentRepository;
         this.projectInventoryConsumptionRepository = projectInventoryConsumptionRepository;
         this.userRepository = userRepository;
+        this.purchaseOrderService = purchaseOrderService;
+    }
+
+    public ProjectExecutionService(
+            ProjectRepository projectRepository,
+            QuotationRepository quotationRepository,
+            QuotationDetailRepository quotationDetailRepository,
+            InventoryItemRepository inventoryItemRepository,
+            InventoryMovementRepository inventoryMovementRepository,
+            MachineryEquipmentRepository machineryEquipmentRepository,
+            EmployeeRepository employeeRepository,
+            ProjectAssignmentRepository projectAssignmentRepository,
+            ProjectMachineryAssignmentRepository projectMachineryAssignmentRepository,
+            ProjectInventoryConsumptionRepository projectInventoryConsumptionRepository,
+            UserRepository userRepository) {
+        this(projectRepository, quotationRepository, quotationDetailRepository, inventoryItemRepository,
+             inventoryMovementRepository, machineryEquipmentRepository, employeeRepository,
+             projectAssignmentRepository, projectMachineryAssignmentRepository,
+             projectInventoryConsumptionRepository, userRepository, null);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -186,6 +208,9 @@ public class ProjectExecutionService {
 
         ProjectInventoryConsumptionEntity saved = projectInventoryConsumptionRepository.save(consumption);
 
+        // RN-P08: Post-consumption hook to evaluate critical items and auto-generate orders
+        triggerAutoReplenishmentSafely(project.getCompany().getId(), currentUser != null ? currentUser.getId() : null);
+
         return new ProjectInventoryConsumptionResponseDTO(
                 saved.getId(),
                 project.getId(),
@@ -196,6 +221,16 @@ public class ProjectExecutionService {
                 updatedItem.getStockQuantity(),
                 saved.getConsumptionDate()
         );
+    }
+
+    private void triggerAutoReplenishmentSafely(UUID companyId, UUID userId) {
+        if (purchaseOrderService != null) {
+            try {
+                purchaseOrderService.autoGenerateOrders(companyId, userId);
+            } catch (Exception e) {
+                log.warn("Fallo en auto-generación de órdenes tras consumo de inventario (no bloqueante): {}", e.getMessage());
+            }
+        }
     }
 
     @Transactional(rollbackFor = Exception.class)

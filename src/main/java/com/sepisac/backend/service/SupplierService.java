@@ -252,4 +252,16 @@ public class SupplierService {
                 entity.getCreatedAt()
         );
     }
+
+    @Transactional(readOnly = true)
+    public boolean checkRucExists(String ruc, UUID companyId, UserPrincipal currentUser) {
+        boolean isSuperAdmin = currentUser != null && "ROLE_SUPERADMIN".equals(currentUser.getRole());
+        UUID targetCompanyId = isSuperAdmin ? (companyId != null ? companyId : (currentUser != null ? currentUser.getCompanyId() : null))
+                : (currentUser != null ? currentUser.getCompanyId() : companyId);
+
+        if (targetCompanyId == null) {
+            throw new AccessDeniedException("Acceso denegado: Debe especificar la empresa del proveedor.");
+        }
+        return supplierRepository.existsByCompanyIdAndRuc(targetCompanyId, ruc);
+    }
 }

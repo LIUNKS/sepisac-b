@@ -56,15 +56,24 @@ public class InventoryItemEntity {
     @Column(name = "min_stock_alert")
     private Integer minStockAlert;
 
+    @Column(name = "supplier_id")
+    private UUID supplierId;
+
+    @Column(name = "reorder_quantity")
+    private Integer reorderQuantity;
+
     @Column(name = "is_deleted")
     private Boolean isDeleted;
 
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
-    @jakarta.persistence.Version
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
+
+    @jakarta.persistence.Version
+    @Column(name = "version")
+    private Long version;
 
     public InventoryItemEntity() {
     }
@@ -92,6 +101,9 @@ public class InventoryItemEntity {
         }
         if (this.isDeleted == null) {
             this.isDeleted = false;
+        }
+        if (this.version == null) {
+            this.version = 0L;
         }
     }
 
@@ -186,6 +198,30 @@ public class InventoryItemEntity {
 
     public void setCreatedAt(OffsetDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public UUID getSupplierId() {
+        return supplierId;
+    }
+
+    public void setSupplierId(UUID supplierId) {
+        this.supplierId = supplierId;
+    }
+
+    public Integer getReorderQuantity() {
+        return reorderQuantity;
+    }
+
+    public void setReorderQuantity(Integer reorderQuantity) {
+        this.reorderQuantity = reorderQuantity;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 
     public OffsetDateTime getUpdatedAt() {
