@@ -22,6 +22,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping({"/api/v1/purchase-orders", "/api/purchase-orders"})
@@ -34,6 +35,22 @@ public class PurchaseOrderController {
 
     public PurchaseOrderController(PurchaseOrderService purchaseOrderService) {
         this.purchaseOrderService = purchaseOrderService;
+    }
+
+
+    @GetMapping("/auto-generate/preview")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'ALMACEN')")
+    @Operation(summary = "Previsualizar generación automática de órdenes de compra", description = "Muestra las órdenes que se generarían sin guardarlas.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Previsualización generada",
+                    content = @Content(schema = @Schema(implementation = PurchaseOrderResponseDTO.class)))
+    })
+    public ResponseEntity<List<PurchaseOrderResponseDTO>> previewAutoGenerateOrders(
+            @Parameter(description = "ID de la empresa (opcional para SUPERADMIN)") @RequestParam(required = false) UUID companyId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        UUID targetCompanyId = resolveCompanyId(companyId, currentUser);
+        List<PurchaseOrderResponseDTO> previewList = purchaseOrderService.previewAutoGenerateOrders(targetCompanyId);
+        return ResponseEntity.ok(previewList);
     }
 
     @PostMapping("/auto-generate")
