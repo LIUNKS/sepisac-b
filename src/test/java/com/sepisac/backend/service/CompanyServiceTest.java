@@ -2,6 +2,7 @@ package com.sepisac.backend.service;
 
 import com.sepisac.backend.dto.CompanyCreateDTO;
 import com.sepisac.backend.dto.CompanyResponseDTO;
+import com.sepisac.backend.dto.CompanyUpdateDTO;
 import com.sepisac.backend.exception.DuplicateResourceException;
 import com.sepisac.backend.exception.ResourceNotFoundException;
 import com.sepisac.backend.model.CompanyEntity;
@@ -195,6 +196,80 @@ class CompanyServiceTest {
                     .hasMessageContaining(nonExistentId.toString());
 
             verify(companyRepository).findById(nonExistentId);
+        }
+    }
+
+    @Nested
+    @DisplayName("updateCompany")
+    class UpdateCompanyTests {
+
+        @Test
+        @DisplayName("Should update company successfully for ADMIN_EMPRESA modifying own company")
+        void shouldUpdateCompanySuccessfullyForAdminEmpresa() {
+            CompanyUpdateDTO updateDTO = new CompanyUpdateDTO("SEPI INGENIERIA S.A.C.", "20123456789", "SUSPENDED");
+
+            when(companyRepository.findById(companyId)).thenReturn(Optional.of(testCompany));
+            when(companyRepository.existsByRucAndIdNot("20123456789", companyId)).thenReturn(false);
+            when(companyRepository.save(any(CompanyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            CompanyResponseDTO response = companyService.updateCompany(companyId, updateDTO, adminEmpresaPrincipal);
+
+            assertThat(response).isNotNull();
+            assertThat(response.getBusinessName()).isEqualTo("SEPI INGENIERIA S.A.C.");
+            assertThat(testCompany.getSubscriptionStatus()).isEqualTo("ACTIVE"); // Non-superadmin cannot change status
+            verify(companyRepository).save(testCompany);
+            verify(auditLogService).log(eq(companyId), eq(adminEmpresaId), eq("UPDATE_COMPANY"), eq("COMPANIES"), any());
+        }
+
+        @Test
+        @DisplayName("Should update company and status for SUPERADMIN")
+        void shouldUpdateCompanySuccessfullyForSuperAdmin() {
+            CompanyUpdateDTO updateDTO = new CompanyUpdateDTO("SEPI CORP S.A.C.", "20999999999", "SUSPENDED");
+
+            when(companyRepository.findById(companyId)).thenReturn(Optional.of(testCompany));
+            when(companyRepository.existsByRucAndIdNot("20999999999", companyId)).thenReturn(false);
+            when(companyRepository.save(any(CompanyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            CompanyResponseDTO response = companyService.updateCompany(companyId, updateDTO, superAdminPrincipal);
+
+            assertThat(response).isNotNull();
+            assertThat(response.getBusinessName()).isEqualTo("SEPI CORP S.A.C.");
+            assertThat(response.getRuc()).isEqualTo("20999999999");
+            assertThat(response.getSubscriptionStatus()).isEqualTo("SUSPENDED");
+            verify(companyRepository).save(testCompany);
+        }
+
+        @Test
+        @DisplayName("Should throw DuplicateResourceException when RUC is already used by another company")
+        void shouldThrowWhenRucAlreadyInUse() {
+            CompanyUpdateDTO updateDTO = new CompanyUpdateDTO("SEPI CORP S.A.C.", "20999999999", "ACTIVE");
+
+            when(companyRepository.findById(companyId)).thenReturn(Optional.of(testCompany));
+            when(companyRepository.existsByRucAndIdNot("20999999999", companyId)).thenReturn(true);
+
+            assertThatThrownBy(() -> companyService.updateCompany(companyId, updateDTO, superAdminPrincipal))
+                    .isInstanceOf(DuplicateResourceException.class)
+                    .hasMessageContaining("20999999999");
+
+            verify(companyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw AccessDeniedException when ADMIN_EMPRESA updates another company")
+        void shouldThrowAccessDeniedWhenAdminUpdatesDifferentCompany() {
+            UUID otherId = UUID.randomUUID();
+            CompanyEntity otherCompany = new CompanyEntity();
+            otherCompany.setId(otherId);
+
+            CompanyUpdateDTO updateDTO = new CompanyUpdateDTO("Other", "20111111111", "ACTIVE");
+
+            when(companyRepository.findById(otherId)).thenReturn(Optional.of(otherCompany));
+
+            assertThatThrownBy(() -> companyService.updateCompany(otherId, updateDTO, adminEmpresaPrincipal))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessageContaining("otra empresa");
+
+            verify(companyRepository, never()).save(any());
         }
     }
 

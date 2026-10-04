@@ -96,6 +96,21 @@ public class UserController {
                 return ResponseEntity.ok(result);
         }
 
+        @GetMapping("/{id}")
+        @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA')")
+        @Operation(summary = "Obtener usuario por ID", description = "Obtiene los datos detallados de un usuario por su UUID.")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "200", description = "Usuario encontrado exitosamente", content = @Content(schema = @Schema(implementation = UserResponseDTO.class))),
+                        @ApiResponse(responseCode = "403", description = "Permiso denegado para consultar usuario de otra empresa", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
+                        @ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+        })
+        public ResponseEntity<UserResponseDTO> getUserById(
+                        @PathVariable UUID id,
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
+                UserResponseDTO user = userService.getUserById(id, currentUser);
+                return ResponseEntity.ok(user);
+        }
+
         @PutMapping("/{id}")
         @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA')")
         @Operation(summary = "Actualizar usuario", description = "Actualiza los datos (nombre completo, username, rol) de un usuario.")

@@ -3,6 +3,7 @@ package com.sepisac.backend.service;
 import com.sepisac.backend.dto.CompanyCreateDTO;
 import com.sepisac.backend.dto.CompanyFilterDTO;
 import com.sepisac.backend.dto.CompanyResponseDTO;
+import com.sepisac.backend.dto.CompanyUpdateDTO;
 import com.sepisac.backend.dto.PageResponseDTO;
 import com.sepisac.backend.exception.DuplicateResourceException;
 import com.sepisac.backend.exception.ResourceNotFoundException;
@@ -78,6 +79,44 @@ public class CompanyService {
         }
 
         return mapToDTO(company);
+    }
+
+    @Transactional
+    public CompanyResponseDTO updateCompany(UUID id, CompanyUpdateDTO dto, UserPrincipal currentUser) {
+        CompanyEntity company = companyRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Empresa no encontrada con id: " + id));
+
+        boolean isSuperAdmin = currentUser != null && "ROLE_SUPERADMIN".equals(currentUser.getRole());
+        if (!isSuperAdmin) {
+            if (currentUser == null || currentUser.getCompanyId() == null || !currentUser.getCompanyId().equals(company.getId())) {
+                throw new AccessDeniedException("Acceso denegado: No tiene permisos para modificar información de otra empresa.");
+            }
+        }
+
+        if (companyRepository.existsByRucAndIdNot(dto.getRuc(), id)) {
+            throw new DuplicateResourceException("Ya existe una empresa registrada con el RUC " + dto.getRuc());
+        }
+
+        company.setBusinessName(dto.getBusinessName());
+        company.setRuc(dto.getRuc());
+
+        // Solo SUPERADMIN puede modificar el subscriptionStatus
+        if (isSuperAdmin && dto.getSubscriptionStatus() != null && !dto.getSubscriptionStatus().trim().isEmpty()) {
+            company.setSubscriptionStatus(dto.getSubscriptionStatus().trim().toUpperCase());
+        }
+
+        CompanyEntity updated = companyRepository.save(company);
+
+        UUID currentUserId = currentUser != null ? currentUser.getId() : null;
+        auditLogService.log(
+                updated.getId(),
+                currentUserId,
+                "UPDATE_COMPANY",
+                "COMPANIES",
+                "Actualización de empresa: " + updated.getBusinessName() + " (RUC: " + updated.getRuc() + ")"
+        );
+
+        return mapToDTO(updated);
     }
 
     @Transactional(readOnly = true)
