@@ -28,6 +28,28 @@ import java.util.UUID;
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class ProjectExecutionController {
 
+    @GetMapping("/{id}/inventory-consumptions")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
+    @Operation(summary = "Listar consumos de inventario del proyecto")
+    public ResponseEntity<java.util.List<ProjectInventoryConsumptionResponseDTO>> getInventoryConsumptions(@PathVariable UUID id) {
+        return ResponseEntity.ok(projectExecutionService.getInventoryConsumptions(id));
+    }
+
+    @GetMapping("/{id}/machinery-assignments")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
+    @Operation(summary = "Listar asignaciones de maquinaria del proyecto")
+    public ResponseEntity<java.util.List<ProjectMachineryAssignmentResponseDTO>> getMachineryAssignments(@PathVariable UUID id) {
+        return ResponseEntity.ok(projectExecutionService.getMachineryAssignments(id));
+    }
+
+    @GetMapping("/{id}/assignments")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
+    @Operation(summary = "Listar asignaciones de personal del proyecto")
+    public ResponseEntity<java.util.List<ProjectAssignmentResponseDTO>> getEmployeeAssignments(@PathVariable UUID id) {
+        return ResponseEntity.ok(projectExecutionService.getEmployeeAssignments(id));
+    }
+
+
     private final ProjectExecutionService projectExecutionService;
 
     @Autowired

@@ -301,4 +301,69 @@ public class ProjectExecutionService {
         dto.setUpdatedAt(project.getUpdatedAt());
         return dto;
     }
+
+    
+
+    
+
+    
+
+
+    public java.util.List<ProjectInventoryConsumptionResponseDTO> getInventoryConsumptions(UUID projectId) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado"));
+        return projectInventoryConsumptionRepository.findByProjectId(projectId).stream()
+                .map(entity -> {
+                    ProjectInventoryConsumptionResponseDTO response = new ProjectInventoryConsumptionResponseDTO();
+                    response.setId(entity.getId());
+                    response.setProjectId(entity.getProject().getId());
+                    response.setInventoryItemId(entity.getInventoryItem().getId());
+                    response.setItemSku(entity.getInventoryItem().getSku());
+                    response.setItemName(entity.getInventoryItem().getName());
+                    response.setQuantityConsumed(entity.getQuantityConsumed());
+                    response.setRemainingStock(entity.getInventoryItem().getStockQuantity());
+                    response.setConsumptionDate(entity.getConsumptionDate());
+                    return response;
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    public java.util.List<ProjectMachineryAssignmentResponseDTO> getMachineryAssignments(UUID projectId) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado"));
+        return projectMachineryAssignmentRepository.findByProjectId(projectId).stream()
+                .map(entity -> {
+                    ProjectMachineryAssignmentResponseDTO response = new ProjectMachineryAssignmentResponseDTO();
+                    response.setId(entity.getId());
+                    response.setProjectId(entity.getProject().getId());
+                    response.setMachineryEquipmentId(entity.getMachineryEquipment().getId());
+                    response.setMachineryCode(entity.getMachineryEquipment().getCode());
+                    response.setMachineryName(entity.getMachineryEquipment().getName());
+                    response.setAssignedDate(entity.getAssignedDate());
+                    response.setReturnDate(entity.getReturnDate());
+                    response.setStatus(entity.getStatus());
+                    return response;
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    public java.util.List<ProjectAssignmentResponseDTO> getEmployeeAssignments(UUID projectId) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado"));
+        return projectAssignmentRepository.findByProjectId(projectId).stream()
+                .map(entity -> {
+                    ProjectAssignmentResponseDTO response = new ProjectAssignmentResponseDTO();
+                    response.setId(entity.getId());
+                    response.setProjectId(entity.getProject().getId());
+                    response.setEmployeeId(entity.getEmployee().getId());
+                    response.setEmployeeName(entity.getEmployee().getFullName());
+                    response.setSpecialty(entity.getEmployee().getSpecialty());
+                    response.setAssignedRole(entity.getAssignedRole());
+                    response.setAssignedDate(entity.getAssignedDate());
+                    response.setIsActive(entity.getIsActive());
+                    return response;
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
+
 }
