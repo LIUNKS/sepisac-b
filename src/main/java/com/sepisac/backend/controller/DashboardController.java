@@ -24,7 +24,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/dashboard")
+@RequestMapping("/api/dashboard")
 @Tag(name = "Dashboard", description = "Endpoints para KPIs y Dashboards Gerenciales")
 @SecurityRequirement(name = "bearerAuth")
 public class DashboardController {
@@ -113,6 +113,41 @@ public class DashboardController {
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.max(1, size));
         PageResponseDTO<InventoryAlertResponseDTO> response = dashboardService.getInventoryAlerts(targetCompanyId, pageable);
         return ResponseEntity.ok(response);
+    }
+
+    
+    @GetMapping("/{companyId}")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA')")
+    public ResponseEntity<com.sepisac.backend.dto.DashboardResponseDTO> getDashboardData(
+            @PathVariable UUID companyId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        
+        UUID targetCompanyId = resolveCompanyId(companyId, currentUser);
+        // FIXME: For now we return empty/dummy data to unblock the frontend 500 error!
+        // The service layer hasn't implemented the unified dashboard aggregation.
+        com.sepisac.backend.dto.DashboardResponseDTO dummy = new com.sepisac.backend.dto.DashboardResponseDTO();
+        dummy.setIngresosMensuales(java.math.BigDecimal.ZERO);
+        dummy.setIngresosTrend(java.math.BigDecimal.ZERO);
+        dummy.setEgresosMensuales(java.math.BigDecimal.ZERO);
+        dummy.setEgresosTrend(java.math.BigDecimal.ZERO);
+        dummy.setCotizacionesAprobadas(0);
+        dummy.setCotizacionesTrend(0);
+        dummy.setProyectosActivos(0);
+        dummy.setProyectosTerminanPronto(0);
+        dummy.setIngresosVsEgresos(java.util.Collections.emptyList());
+        dummy.setEstadoProyectos(java.util.Collections.emptyList());
+        dummy.setProyectosRecientes(java.util.Collections.emptyList());
+        
+        return ResponseEntity.ok(dummy);
+    }
+
+    @PostMapping("/{companyId}/seed")
+    @PreAuthorize("hasAnyRole('SUPERADMIN')")
+    public ResponseEntity<Void> seedDashboardData(
+            @PathVariable UUID companyId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        // Dummy seed endpoint
+        return ResponseEntity.ok().build();
     }
 
     private UUID resolveCompanyId(UUID paramCompanyId, UserPrincipal currentUser) {

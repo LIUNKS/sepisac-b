@@ -77,7 +77,7 @@ public class UserPrincipal implements UserDetails {
 
     public static UserPrincipal create(UserEntity user) {
         String roleName = (user.getRole() != null && user.getRole().getName() != null)
-                ? user.getRole().getName()
+                ? user.getRole().getName().toUpperCase()
                 : "USER";
 
         String formattedRole = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;

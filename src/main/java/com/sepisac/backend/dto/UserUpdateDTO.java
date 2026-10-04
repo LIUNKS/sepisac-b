@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotNull;
 
 public class UserUpdateDTO {
 
+    private java.util.UUID companyId;
+
     @NotBlank(message = "El nombre completo es obligatorio")
     private String fullName;
 
@@ -21,6 +23,10 @@ public class UserUpdateDTO {
         this.username = username;
         this.roleId = roleId;
     }
+
+    
+    public java.util.UUID getCompanyId() { return companyId; }
+    public void setCompanyId(java.util.UUID companyId) { this.companyId = companyId; }
 
     public String getFullName() {
         return fullName;
