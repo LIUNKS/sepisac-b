@@ -34,7 +34,7 @@ USER sepisac
 # Puerto del servicio
 EXPOSE 8080
 
-# Parámetros JVM optimizados para contenedores
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+# Parámetros JVM optimizados para contenedores y servidores de recursos moderados (Lightsail 2GB)
+ENV JAVA_OPTS="-Xms256m -Xmx768m -XX:+UseContainerSupport -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
