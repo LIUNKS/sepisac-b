@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sepisac.backend.dto.CompanyCreateDTO;
 import com.sepisac.backend.dto.CompanyResponseDTO;
+import com.sepisac.backend.dto.CompanyUpdateDTO;
 import com.sepisac.backend.exception.DuplicateResourceException;
 import com.sepisac.backend.exception.GlobalExceptionHandler;
 import com.sepisac.backend.exception.ResourceNotFoundException;
@@ -34,6 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -224,6 +226,58 @@ class CompanyControllerTest {
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.status", is(403)))
                     .andExpect(jsonPath("$.error", is("Forbidden")));
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/companies/{id}")
+    class UpdateCompanyEndpointTests {
+
+        @Test
+        @DisplayName("Should return 200 OK when update payload is valid")
+        void shouldReturn200WhenValid() throws Exception {
+            CompanyUpdateDTO request = new CompanyUpdateDTO("SEPI INGENIERIA S.A.C.", "20123456789", "ACTIVE");
+            CompanyResponseDTO updatedResponse = new CompanyResponseDTO(
+                    testCompanyId, "SEPI INGENIERIA S.A.C.", "20123456789", "ACTIVE", OffsetDateTime.now()
+            );
+
+            when(companyService.updateCompany(eq(testCompanyId), any(CompanyUpdateDTO.class), any()))
+                    .thenReturn(updatedResponse);
+
+            mockMvc.perform(put("/api/companies/{id}", testCompanyId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id", is(testCompanyId.toString())))
+                    .andExpect(jsonPath("$.businessName", is("SEPI INGENIERIA S.A.C.")))
+                    .andExpect(jsonPath("$.ruc", is("20123456789")));
+        }
+
+        @Test
+        @DisplayName("Should return 400 Bad Request when RUC is invalid")
+        void shouldReturn400WhenRucInvalid() throws Exception {
+            CompanyUpdateDTO request = new CompanyUpdateDTO("SEPI", "123", "ACTIVE");
+
+            mockMvc.perform(put("/api/companies/{id}", testCompanyId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status", is(400)));
+        }
+
+        @Test
+        @DisplayName("Should return 409 Conflict when RUC is duplicated")
+        void shouldReturn409WhenRucDuplicated() throws Exception {
+            CompanyUpdateDTO request = new CompanyUpdateDTO("SEPI", "20999999999", "ACTIVE");
+
+            when(companyService.updateCompany(eq(testCompanyId), any(CompanyUpdateDTO.class), any()))
+                    .thenThrow(new DuplicateResourceException("Ya existe una empresa registrada con el RUC 20999999999"));
+
+            mockMvc.perform(put("/api/companies/{id}", testCompanyId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message", containsString("20999999999")));
         }
     }
 }

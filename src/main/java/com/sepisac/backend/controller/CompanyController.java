@@ -3,6 +3,7 @@ package com.sepisac.backend.controller;
 import com.sepisac.backend.dto.CompanyCreateDTO;
 import com.sepisac.backend.dto.CompanyFilterDTO;
 import com.sepisac.backend.dto.CompanyResponseDTO;
+import com.sepisac.backend.dto.CompanyUpdateDTO;
 import com.sepisac.backend.dto.ErrorResponseDTO;
 import com.sepisac.backend.dto.PageResponseDTO;
 import com.sepisac.backend.security.UserPrincipal;
@@ -23,6 +24,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -103,5 +105,23 @@ public class CompanyController {
                         @AuthenticationPrincipal UserPrincipal currentUser) {
                 CompanyResponseDTO company = companyService.getCompanyById(id, currentUser);
                 return ResponseEntity.ok(company);
+        }
+
+        @PutMapping("/{id}")
+        @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA')")
+        @Operation(summary = "Actualizar datos de la empresa", description = "Actualiza la razón social, RUC y/o estado de suscripción de la empresa.")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "200", description = "Empresa actualizada exitosamente", content = @Content(schema = @Schema(implementation = CompanyResponseDTO.class))),
+                        @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
+                        @ApiResponse(responseCode = "403", description = "Permiso denegado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
+                        @ApiResponse(responseCode = "404", description = "Empresa no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
+                        @ApiResponse(responseCode = "409", description = "RUC ya registrado por otra empresa", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+        })
+        public ResponseEntity<CompanyResponseDTO> updateCompany(
+                        @PathVariable UUID id,
+                        @Valid @RequestBody CompanyUpdateDTO requestDTO,
+                        @AuthenticationPrincipal UserPrincipal currentUser) {
+                CompanyResponseDTO updated = companyService.updateCompany(id, requestDTO, currentUser);
+                return ResponseEntity.ok(updated);
         }
 }

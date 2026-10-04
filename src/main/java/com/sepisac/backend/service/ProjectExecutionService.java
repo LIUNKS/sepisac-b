@@ -7,6 +7,7 @@ import com.sepisac.backend.model.*;
 import com.sepisac.backend.repository.*;
 import com.sepisac.backend.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ProjectExecutionService {
@@ -302,68 +304,135 @@ public class ProjectExecutionService {
         return dto;
     }
 
-    
+    public List<ProjectInventoryConsumptionResponseDTO> getInventoryConsumptions(UUID projectId) {
+        return getInventoryConsumptions(projectId, null);
+    }
 
-    
+    public List<ProjectMachineryAssignmentResponseDTO> getMachineryAssignments(UUID projectId) {
+        return getMachineryAssignments(projectId, null);
+    }
 
-    
+    public List<ProjectAssignmentResponseDTO> getEmployeeAssignments(UUID projectId) {
+        return getEmployeeAssignments(projectId, null);
+    }
 
-
-    public java.util.List<ProjectInventoryConsumptionResponseDTO> getInventoryConsumptions(UUID projectId) {
+    @Transactional(readOnly = true)
+    public List<ProjectInventoryConsumptionResponseDTO> getInventoryConsumptions(UUID projectId, UserPrincipal currentUser) {
         ProjectEntity project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado con ID: " + projectId));
+        validateTenantAccess(project, currentUser);
         return projectInventoryConsumptionRepository.findByProjectId(projectId).stream()
-                .map(entity -> {
-                    ProjectInventoryConsumptionResponseDTO response = new ProjectInventoryConsumptionResponseDTO();
-                    response.setId(entity.getId());
-                    response.setProjectId(entity.getProject().getId());
-                    response.setInventoryItemId(entity.getInventoryItem().getId());
-                    response.setItemSku(entity.getInventoryItem().getSku());
-                    response.setItemName(entity.getInventoryItem().getName());
-                    response.setQuantityConsumed(entity.getQuantityConsumed());
-                    response.setRemainingStock(entity.getInventoryItem().getStockQuantity());
-                    response.setConsumptionDate(entity.getConsumptionDate());
-                    return response;
-                })
-                .collect(java.util.stream.Collectors.toList());
+                .map(this::mapToInventoryConsumptionDTO)
+                .collect(Collectors.toList());
     }
 
-    public java.util.List<ProjectMachineryAssignmentResponseDTO> getMachineryAssignments(UUID projectId) {
+    @Transactional(readOnly = true)
+    public List<ProjectMachineryAssignmentResponseDTO> getMachineryAssignments(UUID projectId, UserPrincipal currentUser) {
         ProjectEntity project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado con ID: " + projectId));
+        validateTenantAccess(project, currentUser);
         return projectMachineryAssignmentRepository.findByProjectId(projectId).stream()
-                .map(entity -> {
-                    ProjectMachineryAssignmentResponseDTO response = new ProjectMachineryAssignmentResponseDTO();
-                    response.setId(entity.getId());
-                    response.setProjectId(entity.getProject().getId());
-                    response.setMachineryEquipmentId(entity.getMachineryEquipment().getId());
-                    response.setMachineryCode(entity.getMachineryEquipment().getCode());
-                    response.setMachineryName(entity.getMachineryEquipment().getName());
-                    response.setAssignedDate(entity.getAssignedDate());
-                    response.setReturnDate(entity.getReturnDate());
-                    response.setStatus(entity.getStatus());
-                    return response;
-                })
-                .collect(java.util.stream.Collectors.toList());
+                .map(this::mapToMachineryAssignmentDTO)
+                .collect(Collectors.toList());
     }
 
-    public java.util.List<ProjectAssignmentResponseDTO> getEmployeeAssignments(UUID projectId) {
+    @Transactional(readOnly = true)
+    public List<ProjectAssignmentResponseDTO> getEmployeeAssignments(UUID projectId, UserPrincipal currentUser) {
         ProjectEntity project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado con ID: " + projectId));
+        validateTenantAccess(project, currentUser);
         return projectAssignmentRepository.findByProjectId(projectId).stream()
-                .map(entity -> {
-                    ProjectAssignmentResponseDTO response = new ProjectAssignmentResponseDTO();
-                    response.setId(entity.getId());
-                    response.setProjectId(entity.getProject().getId());
-                    response.setEmployeeId(entity.getEmployee().getId());
-                    response.setEmployeeName(entity.getEmployee().getFullName());
-                    response.setSpecialty(entity.getEmployee().getSpecialty());
-                    response.setAssignedRole(entity.getAssignedRole());
-                    response.setAssignedDate(entity.getAssignedDate());
-                    response.setIsActive(entity.getIsActive());
-                    return response;
-                })
-                .collect(java.util.stream.Collectors.toList());
+                .map(this::mapToAssignmentDTO)
+                .collect(Collectors.toList());
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public void releaseMachineryAssignment(UUID projectId, UUID assignmentId, UserPrincipal currentUser) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado con ID: " + projectId));
+        validateTenantAccess(project, currentUser);
+
+        ProjectMachineryAssignmentEntity assignment = projectMachineryAssignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Asignación de maquinaria no encontrada con ID: " + assignmentId));
+
+        if (!assignment.getProject().getId().equals(projectId)) {
+            throw new BusinessRuleException("La asignación no corresponde al proyecto indicado.");
+        }
+
+        MachineryEquipmentEntity machinery = assignment.getMachineryEquipment();
+        if (machinery != null) {
+            machinery.setStatus("DISPONIBLE");
+            machineryEquipmentRepository.save(machinery);
+        }
+
+        projectMachineryAssignmentRepository.delete(assignment);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void removeEmployeeAssignment(UUID projectId, UUID assignmentId, UserPrincipal currentUser) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado con ID: " + projectId));
+        validateTenantAccess(project, currentUser);
+
+        ProjectAssignmentEntity assignment = projectAssignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Asignación de empleado no encontrada con ID: " + assignmentId));
+
+        if (!assignment.getProject().getId().equals(projectId)) {
+            throw new BusinessRuleException("La asignación no corresponde al proyecto indicado.");
+        }
+
+        projectAssignmentRepository.delete(assignment);
+    }
+
+    private void validateTenantAccess(ProjectEntity project, UserPrincipal currentUser) {
+        if (project.getCompany() == null || currentUser == null) return;
+        boolean isSuperAdmin = "ROLE_SUPERADMIN".equals(currentUser.getRole());
+        if (!isSuperAdmin) {
+            if (currentUser.getCompanyId() == null || !currentUser.getCompanyId().equals(project.getCompany().getId())) {
+                throw new AccessDeniedException("Acceso denegado: No tiene permisos para acceder a recursos de otra empresa.");
+            }
+        }
+    }
+
+    private ProjectInventoryConsumptionResponseDTO mapToInventoryConsumptionDTO(ProjectInventoryConsumptionEntity saved) {
+        InventoryItemEntity item = saved.getInventoryItem();
+        return new ProjectInventoryConsumptionResponseDTO(
+                saved.getId(),
+                saved.getProject() != null ? saved.getProject().getId() : null,
+                item != null ? item.getId() : null,
+                item != null ? item.getSku() : null,
+                item != null ? item.getName() : null,
+                saved.getQuantityConsumed(),
+                item != null ? item.getStockQuantity() : 0,
+                saved.getConsumptionDate()
+        );
+    }
+
+    private ProjectMachineryAssignmentResponseDTO mapToMachineryAssignmentDTO(ProjectMachineryAssignmentEntity saved) {
+        MachineryEquipmentEntity machinery = saved.getMachineryEquipment();
+        return new ProjectMachineryAssignmentResponseDTO(
+                saved.getId(),
+                saved.getProject() != null ? saved.getProject().getId() : null,
+                machinery != null ? machinery.getId() : null,
+                machinery != null ? machinery.getCode() : null,
+                machinery != null ? machinery.getName() : null,
+                saved.getAssignedDate(),
+                saved.getReturnDate(),
+                saved.getStatus()
+        );
+    }
+
+    private ProjectAssignmentResponseDTO mapToAssignmentDTO(ProjectAssignmentEntity saved) {
+        EmployeeEntity employee = saved.getEmployee();
+        return new ProjectAssignmentResponseDTO(
+                saved.getId(),
+                saved.getProject() != null ? saved.getProject().getId() : null,
+                employee != null ? employee.getId() : null,
+                employee != null ? employee.getFullName() : null,
+                employee != null ? employee.getSpecialty() : null,
+                saved.getAssignedRole(),
+                saved.getAssignedDate(),
+                saved.getIsActive()
+        );
+    }
 }

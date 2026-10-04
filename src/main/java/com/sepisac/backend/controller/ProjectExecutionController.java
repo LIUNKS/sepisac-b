@@ -19,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,33 +29,26 @@ import java.util.UUID;
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class ProjectExecutionController {
 
-    @GetMapping("/{id}/inventory-consumptions")
-    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
-    @Operation(summary = "Listar consumos de inventario del proyecto")
-    public ResponseEntity<java.util.List<ProjectInventoryConsumptionResponseDTO>> getInventoryConsumptions(@PathVariable UUID id) {
-        return ResponseEntity.ok(projectExecutionService.getInventoryConsumptions(id));
-    }
-
-    @GetMapping("/{id}/machinery-assignments")
-    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
-    @Operation(summary = "Listar asignaciones de maquinaria del proyecto")
-    public ResponseEntity<java.util.List<ProjectMachineryAssignmentResponseDTO>> getMachineryAssignments(@PathVariable UUID id) {
-        return ResponseEntity.ok(projectExecutionService.getMachineryAssignments(id));
-    }
-
-    @GetMapping("/{id}/assignments")
-    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
-    @Operation(summary = "Listar asignaciones de personal del proyecto")
-    public ResponseEntity<java.util.List<ProjectAssignmentResponseDTO>> getEmployeeAssignments(@PathVariable UUID id) {
-        return ResponseEntity.ok(projectExecutionService.getEmployeeAssignments(id));
-    }
-
-
     private final ProjectExecutionService projectExecutionService;
 
     @Autowired
     public ProjectExecutionController(ProjectExecutionService projectExecutionService) {
         this.projectExecutionService = projectExecutionService;
+    }
+
+    @GetMapping("/{id}/inventory-consumptions")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
+    @Operation(summary = "Listar consumos de inventario del proyecto", 
+               description = "Obtiene la lista de todos los materiales consumidos en la ejecución del proyecto.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lista de consumos obtenida exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Proyecto no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<List<ProjectInventoryConsumptionResponseDTO>> getInventoryConsumptions(
+            @Parameter(description = "ID del proyecto") @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        List<ProjectInventoryConsumptionResponseDTO> consumptions = projectExecutionService.getInventoryConsumptions(id, currentUser);
+        return ResponseEntity.ok(consumptions);
     }
 
     @PostMapping("/{id}/inventory-consumptions")
@@ -75,6 +69,21 @@ public class ProjectExecutionController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+    @GetMapping("/{id}/machinery-assignments")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
+    @Operation(summary = "Listar maquinarias asignadas al proyecto", 
+               description = "Obtiene la lista de maquinarias y equipos asignados al proyecto.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lista de maquinarias asignadas obtenida exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Proyecto no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<List<ProjectMachineryAssignmentResponseDTO>> getMachineryAssignments(
+            @Parameter(description = "ID del proyecto") @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        List<ProjectMachineryAssignmentResponseDTO> assignments = projectExecutionService.getMachineryAssignments(id, currentUser);
+        return ResponseEntity.ok(assignments);
+    }
+
     @PostMapping("/{id}/machinery-assignments")
     @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
     @Operation(summary = "Asignar maquinaria o equipo a proyecto", 
@@ -91,6 +100,38 @@ public class ProjectExecutionController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
+    @DeleteMapping("/{id}/machinery-assignments/{assignmentId}")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN')")
+    @Operation(summary = "Liberar asignación de maquinaria", 
+               description = "Libera la maquinaria asignada a un proyecto, cambiando su estado operativo nuevamente a DISPONIBLE.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Maquinaria liberada y asignación eliminada exitosamente"),
+            @ApiResponse(responseCode = "400", description = "La asignación no corresponde al proyecto indicado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "Proyecto o asignación no encontrados", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<Void> releaseMachineryAssignment(
+            @Parameter(description = "ID del proyecto") @PathVariable UUID id,
+            @Parameter(description = "ID de la asignación de maquinaria") @PathVariable UUID assignmentId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        projectExecutionService.releaseMachineryAssignment(id, assignmentId, currentUser);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/assignments")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
+    @Operation(summary = "Listar empleados/personal asignados al proyecto", 
+               description = "Obtiene la lista de empleados asignados a la cuadrilla del proyecto.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lista de empleados asignados obtenida exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Proyecto no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<List<ProjectAssignmentResponseDTO>> getEmployeeAssignments(
+            @Parameter(description = "ID del proyecto") @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        List<ProjectAssignmentResponseDTO> assignments = projectExecutionService.getEmployeeAssignments(id, currentUser);
+        return ResponseEntity.ok(assignments);
+    }
+
     @PostMapping("/{id}/assignments")
     @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
     @Operation(summary = "Asignar personal/técnico a proyecto", 
@@ -105,5 +146,22 @@ public class ProjectExecutionController {
             @Valid @RequestBody ProjectAssignmentCreateDTO dto) {
         ProjectAssignmentResponseDTO response = projectExecutionService.assignEmployee(id, dto);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    @DeleteMapping("/{id}/assignments/{assignmentId}")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA')")
+    @Operation(summary = "Desasignar empleado del proyecto", 
+               description = "Elimina la asignación de un empleado o técnico de la cuadrilla del proyecto.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Asignación eliminada exitosamente"),
+            @ApiResponse(responseCode = "400", description = "La asignación no corresponde al proyecto indicado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "Proyecto o asignación no encontrados", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<Void> removeEmployeeAssignment(
+            @Parameter(description = "ID del proyecto") @PathVariable UUID id,
+            @Parameter(description = "ID de la asignación del empleado") @PathVariable UUID assignmentId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        projectExecutionService.removeEmployeeAssignment(id, assignmentId, currentUser);
+        return ResponseEntity.noContent().build();
     }
 }
