@@ -24,7 +24,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/dashboard")
+@RequestMapping({"/api/dashboard", "/api/v1/dashboard"})
 @Tag(name = "Dashboard", description = "Endpoints para KPIs y Dashboards Gerenciales")
 @SecurityRequirement(name = "bearerAuth")
 public class DashboardController {
