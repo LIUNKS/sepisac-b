@@ -1,8 +1,10 @@
 package com.sepisac.backend.service;
 
+import com.sepisac.backend.dto.InvoiceFilterDTO;
 import com.sepisac.backend.dto.InvoicePaymentCreateDTO;
 import com.sepisac.backend.dto.InvoicePaymentResponseDTO;
 import com.sepisac.backend.dto.InvoiceResponseDTO;
+import com.sepisac.backend.dto.PageResponseDTO;
 import com.sepisac.backend.exception.BusinessRuleException;
 import com.sepisac.backend.exception.OverpaymentException;
 import com.sepisac.backend.exception.ResourceNotFoundException;
@@ -17,6 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.math.BigDecimal;
@@ -255,6 +259,67 @@ class InvoiceSprint5CriticalTest {
             assertThat(list).hasSize(1);
             assertThat(list.get(0).getPaymentStatus()).isEqualTo("PENDIENTE");
             assertThat(list.get(0).getInvoiceNumber()).isEqualTo("FAC-2026-001");
+        }
+    }
+
+    @Nested
+    @DisplayName("Paginación y Anulación de Facturas")
+    class InvoicePaginationAndCancellationTests {
+
+        @Test
+        @DisplayName("Debe listar facturas paginadas para el tenant del usuario")
+        void shouldGetInvoicesPagedSuccessfully() {
+            InvoiceFilterDTO filter = new InvoiceFilterDTO();
+            filter.setPage(0);
+            filter.setSize(10);
+            filter.setStatus("PENDIENTE");
+
+            when(invoiceRepository.findByCompanyIdWithFilters(eq(tenantAId), eq("PENDIENTE"), any(), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(testInvoice)));
+            when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+
+            PageResponseDTO<InvoiceResponseDTO> result = invoiceService.getInvoicesPaged(filter, userTenantA);
+
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getTotalElements()).isEqualTo(1);
+            assertThat(result.getContent().get(0).getInvoiceNumber()).isEqualTo("FAC-2026-001");
+        }
+
+        @Test
+        @DisplayName("Debe anular factura exitosamente cuando no tiene pagos")
+        void shouldCancelInvoiceSuccessfullyWhenNoPayments() {
+            when(invoiceRepository.findById(invoiceId)).thenReturn(Optional.of(testInvoice));
+            when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            when(invoiceRepository.save(any(InvoiceEntity.class))).thenAnswer(i -> i.getArgument(0));
+
+            InvoiceResponseDTO result = invoiceService.cancelInvoice(invoiceId, "Error en monto", userTenantA);
+
+            assertThat(result.getPaymentStatus()).isEqualTo("ANULADA");
+            assertThat(testInvoice.getPaymentStatus()).isEqualTo("ANULADA");
+            verify(invoiceRepository).save(testInvoice);
+            verify(auditLogService).log(eq(tenantAId), eq(userIdA), eq("INVOICE_CANCELLED"), eq("FINANCE"), anyString());
+        }
+
+        @Test
+        @DisplayName("Debe fallar al anular factura si ya está anulada")
+        void shouldThrowWhenInvoiceAlreadyCancelled() {
+            testInvoice.setPaymentStatus("ANULADA");
+            when(invoiceRepository.findById(invoiceId)).thenReturn(Optional.of(testInvoice));
+
+            assertThatThrownBy(() -> invoiceService.cancelInvoice(invoiceId, "Motivo", userTenantA))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("ya se encuentra anulada");
+        }
+
+        @Test
+        @DisplayName("Debe fallar al anular factura si ya tiene pagos registrados")
+        void shouldThrowWhenInvoiceHasPayments() {
+            when(invoiceRepository.findById(invoiceId)).thenReturn(Optional.of(testInvoice));
+            when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(new BigDecimal("500.00"));
+
+            assertThatThrownBy(() -> invoiceService.cancelInvoice(invoiceId, "Motivo", userTenantA))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("pagos registrados");
         }
     }
 }

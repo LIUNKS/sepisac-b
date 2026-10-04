@@ -3,8 +3,11 @@ package com.sepisac.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sepisac.backend.dto.RoleCreateDTO;
 import com.sepisac.backend.dto.RoleResponseDTO;
+import com.sepisac.backend.dto.RoleUpdateDTO;
+import com.sepisac.backend.exception.BusinessRuleException;
 import com.sepisac.backend.exception.DuplicateResourceException;
 import com.sepisac.backend.exception.GlobalExceptionHandler;
+import com.sepisac.backend.exception.ResourceNotFoundException;
 import com.sepisac.backend.service.RoleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,10 +26,15 @@ import java.util.List;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -136,6 +144,143 @@ class RoleControllerTest {
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.message", is("El rol 'ALMACEN' ya se encuentra registrado")));
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/roles/{id}")
+    class GetRoleByIdEndpointTests {
+
+        @Test
+        @DisplayName("Should return 200 OK with RoleResponseDTO when role exists")
+        void shouldReturn200WhenRoleExists() throws Exception {
+            RoleResponseDTO roleResponse = new RoleResponseDTO(3, "GERENCIA", "Acceso a Reportes y Proyectos");
+            when(roleService.getRoleById(3)).thenReturn(roleResponse);
+
+            mockMvc.perform(get("/api/roles/{id}", 3))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id", is(3)))
+                    .andExpect(jsonPath("$.name", is("GERENCIA")))
+                    .andExpect(jsonPath("$.description", is("Acceso a Reportes y Proyectos")));
+
+            verify(roleService).getRoleById(3);
+        }
+
+        @Test
+        @DisplayName("Should return 404 Not Found when role does not exist")
+        void shouldReturn404WhenRoleNotFound() throws Exception {
+            when(roleService.getRoleById(99))
+                    .thenThrow(new ResourceNotFoundException("Rol no encontrado con ID: 99"));
+
+            mockMvc.perform(get("/api/roles/{id}", 99))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message", is("Rol no encontrado con ID: 99")));
+
+            verify(roleService).getRoleById(99);
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/roles/{id}")
+    class UpdateRoleEndpointTests {
+
+        @Test
+        @DisplayName("Should return 200 OK with updated RoleResponseDTO when request is valid")
+        void shouldReturn200WhenUpdateIsSuccessful() throws Exception {
+            RoleUpdateDTO request = new RoleUpdateDTO("AUDITOR_SENIOR", "Descripción actualizada");
+            RoleResponseDTO response = new RoleResponseDTO(6, "AUDITOR_SENIOR", "Descripción actualizada");
+
+            when(roleService.updateRole(eq(6), any(RoleUpdateDTO.class))).thenReturn(response);
+
+            mockMvc.perform(put("/api/roles/{id}", 6)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id", is(6)))
+                    .andExpect(jsonPath("$.name", is("AUDITOR_SENIOR")))
+                    .andExpect(jsonPath("$.description", is("Descripción actualizada")));
+
+            verify(roleService).updateRole(eq(6), any(RoleUpdateDTO.class));
+        }
+
+        @Test
+        @DisplayName("Should return 400 Bad Request when update name is blank")
+        void shouldReturn400WhenUpdateNameIsBlank() throws Exception {
+            RoleUpdateDTO invalidRequest = new RoleUpdateDTO("", "Descripción");
+
+            mockMvc.perform(put("/api/roles/{id}", 6)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalidRequest)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").exists());
+        }
+
+        @Test
+        @DisplayName("Should return 404 Not Found when updating non-existent role")
+        void shouldReturn404WhenUpdatingNonExistentRole() throws Exception {
+            RoleUpdateDTO request = new RoleUpdateDTO("NUEVO_ROL", "Desc");
+
+            when(roleService.updateRole(eq(99), any(RoleUpdateDTO.class)))
+                    .thenThrow(new ResourceNotFoundException("Rol no encontrado con ID: 99"));
+
+            mockMvc.perform(put("/api/roles/{id}", 99)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message", is("Rol no encontrado con ID: 99")));
+        }
+
+        @Test
+        @DisplayName("Should return 409 Conflict when update triggers duplicate or business rule exception")
+        void shouldReturn409WhenBusinessRuleOrDuplicateConflict() throws Exception {
+            RoleUpdateDTO request = new RoleUpdateDTO("NUEVO_SUPERADMIN", "Desc");
+
+            when(roleService.updateRole(eq(1), any(RoleUpdateDTO.class)))
+                    .thenThrow(new BusinessRuleException("No se permite modificar el nombre del rol del sistema 'SUPERADMIN'"));
+
+            mockMvc.perform(put("/api/roles/{id}", 1)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message", is("No se permite modificar el nombre del rol del sistema 'SUPERADMIN'")));
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /api/roles/{id}")
+    class DeleteRoleEndpointTests {
+
+        @Test
+        @DisplayName("Should return 204 No Content when role is deleted successfully")
+        void shouldReturn204WhenDeletedSuccessfully() throws Exception {
+            doNothing().when(roleService).deleteRole(6);
+
+            mockMvc.perform(delete("/api/roles/{id}", 6))
+                    .andExpect(status().isNoContent());
+
+            verify(roleService).deleteRole(6);
+        }
+
+        @Test
+        @DisplayName("Should return 404 Not Found when deleting non-existent role")
+        void shouldReturn404WhenDeletingNonExistentRole() throws Exception {
+            doThrow(new ResourceNotFoundException("Rol no encontrado con ID: 99"))
+                    .when(roleService).deleteRole(99);
+
+            mockMvc.perform(delete("/api/roles/{id}", 99))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message", is("Rol no encontrado con ID: 99")));
+        }
+
+        @Test
+        @DisplayName("Should return 409 Conflict when deleting system role or role with assigned users")
+        void shouldReturn409WhenDeletingRoleFailsBusinessRule() throws Exception {
+            doThrow(new BusinessRuleException("No se permite eliminar un rol del sistema base: SUPERADMIN"))
+                    .when(roleService).deleteRole(1);
+
+            mockMvc.perform(delete("/api/roles/{id}", 1))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message", is("No se permite eliminar un rol del sistema base: SUPERADMIN")));
         }
     }
 }

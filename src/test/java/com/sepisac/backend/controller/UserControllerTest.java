@@ -415,4 +415,47 @@ class UserControllerTest {
                     .andExpect(jsonPath("$.error", is("Forbidden")));
         }
     }
+
+    @Nested
+    @DisplayName("GET /api/users/{id}")
+    class GetUserByIdEndpointTests {
+
+        @Test
+        @DisplayName("Should return 200 OK when user is found")
+        void shouldReturn200WhenUserFound() throws Exception {
+            when(userService.getUserById(eq(testUserId), any())).thenReturn(testUserResponse);
+
+            mockMvc.perform(get("/api/users/{id}", testUserId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id", is(testUserId.toString())))
+                    .andExpect(jsonPath("$.username", is("juan.perez")))
+                    .andExpect(jsonPath("$.email", is("juan.perez@empresa.com")));
+        }
+
+        @Test
+        @DisplayName("Should return 404 Not Found when user does not exist")
+        void shouldReturn404WhenUserNotFound() throws Exception {
+            UUID nonExistentId = UUID.randomUUID();
+            when(userService.getUserById(eq(nonExistentId), any()))
+                    .thenThrow(new ResourceNotFoundException("Usuario no encontrado"));
+
+            mockMvc.perform(get("/api/users/{id}", nonExistentId))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status", is(404)))
+                    .andExpect(jsonPath("$.error", is("Not Found")));
+        }
+
+        @Test
+        @DisplayName("Should return 403 Forbidden when user belongs to another company")
+        void shouldReturn403WhenAccessDenied() throws Exception {
+            UUID otherCompanyUserId = UUID.randomUUID();
+            when(userService.getUserById(eq(otherCompanyUserId), any()))
+                    .thenThrow(new AccessDeniedException("Acceso denegado"));
+
+            mockMvc.perform(get("/api/users/{id}", otherCompanyUserId))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.status", is(403)))
+                    .andExpect(jsonPath("$.error", is("Forbidden")));
+        }
+    }
 }

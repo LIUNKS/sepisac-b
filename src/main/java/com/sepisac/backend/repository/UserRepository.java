@@ -23,6 +23,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     List<UserEntity> findByCompanyId(UUID companyId);
 
+    boolean existsByRoleId(Integer roleId);
+
     boolean existsByCompanyIdAndUsername(UUID companyId, String username);
 
     @Query("SELECT u FROM UserEntity u WHERE u.company.id = :companyId " +

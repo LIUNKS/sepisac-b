@@ -21,12 +21,18 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -152,5 +158,80 @@ class ProjectExecutionControllerTest {
                 .andExpect(jsonPath("$.employeeName", is("Juan Pérez")))
                 .andExpect(jsonPath("$.assignedRole", is("Técnico Electricista")))
                 .andExpect(jsonPath("$.isActive", is(true)));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/projects/{id}/inventory-consumptions - Éxito 200")
+    void shouldGetInventoryConsumptionsSuccessfully() throws Exception {
+        ProjectInventoryConsumptionResponseDTO dto = new ProjectInventoryConsumptionResponseDTO(
+                UUID.randomUUID(), projectId, itemId, "TUB-01", "Tubo de Acero", 5, 15, OffsetDateTime.now()
+        );
+
+        when(projectExecutionService.getInventoryConsumptions(eq(projectId), any()))
+                .thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/projects/{id}/inventory-consumptions", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].itemSku", is("TUB-01")))
+                .andExpect(jsonPath("$[0].quantityConsumed", is(5)));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/projects/{id}/machinery-assignments - Éxito 200")
+    void shouldGetMachineryAssignmentsSuccessfully() throws Exception {
+        ProjectMachineryAssignmentResponseDTO dto = new ProjectMachineryAssignmentResponseDTO(
+                UUID.randomUUID(), projectId, machineryId, "MAQ-01", "Excavadora CAT", LocalDate.now(), null, "EN_USO"
+        );
+
+        when(projectExecutionService.getMachineryAssignments(eq(projectId), any()))
+                .thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/projects/{id}/machinery-assignments", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].machineryCode", is("MAQ-01")))
+                .andExpect(jsonPath("$[0].status", is("EN_USO")));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/projects/{id}/machinery-assignments/{assignmentId} - Éxito 204")
+    void shouldReleaseMachineryAssignmentSuccessfully() throws Exception {
+        UUID assignmentId = UUID.randomUUID();
+        doNothing().when(projectExecutionService).releaseMachineryAssignment(eq(projectId), eq(assignmentId), any());
+
+        mockMvc.perform(delete("/api/v1/projects/{id}/machinery-assignments/{assignmentId}", projectId, assignmentId))
+                .andExpect(status().isNoContent());
+
+        verify(projectExecutionService).releaseMachineryAssignment(eq(projectId), eq(assignmentId), any());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/projects/{id}/assignments - Éxito 200")
+    void shouldGetEmployeeAssignmentsSuccessfully() throws Exception {
+        ProjectAssignmentResponseDTO dto = new ProjectAssignmentResponseDTO(
+                UUID.randomUUID(), projectId, employeeId, "Juan Pérez", "Electricidad", "Técnico Electricista", LocalDate.now(), true
+        );
+
+        when(projectExecutionService.getEmployeeAssignments(eq(projectId), any()))
+                .thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/projects/{id}/assignments", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].employeeName", is("Juan Pérez")))
+                .andExpect(jsonPath("$[0].assignedRole", is("Técnico Electricista")));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/projects/{id}/assignments/{assignmentId} - Éxito 204")
+    void shouldRemoveEmployeeAssignmentSuccessfully() throws Exception {
+        UUID assignmentId = UUID.randomUUID();
+        doNothing().when(projectExecutionService).removeEmployeeAssignment(eq(projectId), eq(assignmentId), any());
+
+        mockMvc.perform(delete("/api/v1/projects/{id}/assignments/{assignmentId}", projectId, assignmentId))
+                .andExpect(status().isNoContent());
+
+        verify(projectExecutionService).removeEmployeeAssignment(eq(projectId), eq(assignmentId), any());
     }
 }

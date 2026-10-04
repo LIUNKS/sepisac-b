@@ -92,7 +92,15 @@ public class UserService {
         UserEntity user = new UserEntity();
         user.setEmail(dto.getEmail());
         user.setUsername(username);
+        
+        if (isSuperAdmin && dto.getCompanyId() != null) {
+            com.sepisac.backend.model.CompanyEntity newCompany = companyRepository.findById(dto.getCompanyId())
+                .orElseThrow(() -> new com.sepisac.backend.exception.ResourceNotFoundException("Empresa no encontrada con id: " + dto.getCompanyId()));
+            user.setCompany(newCompany);
+        }
+        
         user.setFullName(dto.getFullName());
+
         user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         user.setRole(role);
         user.setCompany(company);
@@ -238,6 +246,13 @@ public class UserService {
             }
         }
 
+        
+        if (isSuperAdmin && dto.getCompanyId() != null) {
+            com.sepisac.backend.model.CompanyEntity newCompany = companyRepository.findById(dto.getCompanyId())
+                .orElseThrow(() -> new com.sepisac.backend.exception.ResourceNotFoundException("Empresa no encontrada con id: " + dto.getCompanyId()));
+            user.setCompany(newCompany);
+        }
+        
         user.setFullName(dto.getFullName());
 
         if (dto.getRoleId() != null && (user.getRole() == null || !dto.getRoleId().equals(user.getRole().getId()))) {

@@ -16,6 +16,8 @@ public interface CompanyRepository extends JpaRepository<CompanyEntity, UUID> {
 
     boolean existsByRuc(String ruc);
 
+    boolean existsByRucAndIdNot(String ruc, UUID id);
+
     @Query("SELECT c FROM CompanyEntity c WHERE " +
            "(:subscriptionStatus IS NULL OR c.subscriptionStatus = :subscriptionStatus) " +
            "AND (:search IS NULL OR LOWER(c.businessName) LIKE LOWER(CONCAT('%', :search, '%')) " +

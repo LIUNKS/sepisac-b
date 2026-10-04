@@ -55,6 +55,87 @@ public class PurchaseOrderService {
         this.auditLogService = auditLogService;
     }
 
+
+    @Transactional(readOnly = true)
+    public List<PurchaseOrderResponseDTO> previewAutoGenerateOrders(UUID companyId) {
+        CompanyEntity company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new ResourceNotFoundException("Empresa no encontrada con ID: " + companyId));
+
+        List<InventoryItemEntity> criticalItems = inventoryItemRepository.findCriticalItemsByCompanyId(companyId);
+        if (criticalItems.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<UUID> criticalItemIds = criticalItems.stream().map(InventoryItemEntity::getId).toList();
+        Set<UUID> openOrderItemIds = purchaseOrderRepository.findOpenPurchaseOrderItemIds(companyId, criticalItemIds);
+
+        Map<UUID, List<InventoryItemEntity>> itemsBySupplier = new HashMap<>();
+
+        for (InventoryItemEntity item : criticalItems) {
+            if (openOrderItemIds != null && openOrderItemIds.contains(item.getId())) {
+                continue;
+            }
+            if (item.getSupplierId() == null) {
+                continue;
+            }
+            SupplierEntity supplier = supplierRepository.findById(item.getSupplierId()).orElse(null);
+            if (supplier == null || Boolean.TRUE.equals(supplier.getIsDeleted()) || !supplier.getCompany().getId().equals(companyId)) {
+                continue;
+            }
+            itemsBySupplier.computeIfAbsent(item.getSupplierId(), k -> new ArrayList<>()).add(item);
+        }
+
+        List<PurchaseOrderResponseDTO> previewList = new ArrayList<>();
+        int previewOrderCount = 1;
+
+        for (Map.Entry<UUID, List<InventoryItemEntity>> entry : itemsBySupplier.entrySet()) {
+            SupplierEntity supplier = supplierRepository.findById(entry.getKey()).orElse(null);
+            if (supplier == null) continue;
+
+            PurchaseOrderResponseDTO orderDto = new PurchaseOrderResponseDTO();
+            orderDto.setId(UUID.randomUUID()); // mock ID
+            orderDto.setCompanyId(companyId);
+            orderDto.setSupplierId(supplier.getId());
+            orderDto.setSupplierName(supplier.getBusinessName());
+            orderDto.setSupplierRuc(supplier.getRuc());
+            orderDto.setOrderNumber("PREV-" + String.format("%04d", previewOrderCount++));
+            orderDto.setCurrency("PEN");
+            orderDto.setExchangeRate(new BigDecimal("1.0000"));
+            orderDto.setStatus("PREVIEW");
+            orderDto.setCreatedAt(OffsetDateTime.now());
+            orderDto.setUpdatedAt(OffsetDateTime.now());
+
+            BigDecimal totalAmount = BigDecimal.ZERO;
+            List<PurchaseOrderDetailResponseDTO> details = new ArrayList<>();
+
+            for (InventoryItemEntity item : entry.getValue()) {
+                int quantity = item.getReorderQuantity() != null
+                        ? item.getReorderQuantity()
+                        : Math.max(1, (item.getMinStockAlert() * 2) - item.getStockQuantity());
+
+                BigDecimal unitCost = item.getPurchaseCost() != null ? item.getPurchaseCost() : BigDecimal.ZERO;
+                BigDecimal subtotal = unitCost.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
+                totalAmount = totalAmount.add(subtotal);
+
+                PurchaseOrderDetailResponseDTO detailDto = new PurchaseOrderDetailResponseDTO();
+                detailDto.setId(UUID.randomUUID()); // mock ID
+                detailDto.setInventoryItemId(item.getId());
+                detailDto.setItemSku(item.getSku());
+                detailDto.setItemName(item.getName());
+                detailDto.setQuantity(quantity);
+                detailDto.setUnitCost(unitCost);
+                detailDto.setSubtotal(subtotal);
+                details.add(detailDto);
+            }
+
+            orderDto.setTotalAmount(totalAmount.setScale(2, RoundingMode.HALF_UP));
+            orderDto.setDetails(details);
+            previewList.add(orderDto);
+        }
+
+        return previewList;
+    }
+
     /**
      * RN-P01 to RN-P07, RN-P10: Auto-generate purchase orders for critical items.
      */
