@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -355,6 +356,156 @@ class ProjectExecutionServiceTest {
             assertThat(result.getIsActive()).isTrue();
 
             verify(projectAssignmentRepository).save(any(ProjectAssignmentEntity.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("6. Consultas de Recursos del Proyecto")
+    class GetProjectResourcesTests {
+
+        @Test
+        @DisplayName("Debe listar consumos de inventario del proyecto")
+        void shouldGetInventoryConsumptionsSuccessfully() {
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+
+            ProjectInventoryConsumptionEntity consumption = new ProjectInventoryConsumptionEntity();
+            consumption.setId(UUID.randomUUID());
+            consumption.setProject(testProject);
+            consumption.setInventoryItem(testInventoryItem);
+            consumption.setQuantityConsumed(10);
+            consumption.setConsumptionDate(OffsetDateTime.now());
+
+            when(projectInventoryConsumptionRepository.findByProjectId(projectId))
+                    .thenReturn(List.of(consumption));
+
+            List<ProjectInventoryConsumptionResponseDTO> result =
+                    projectExecutionService.getInventoryConsumptions(projectId, testUserPrincipal);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getItemSku()).isEqualTo("TUB-AC-001");
+            assertThat(result.get(0).getQuantityConsumed()).isEqualTo(10);
+        }
+
+        @Test
+        @DisplayName("Debe listar maquinarias asignadas al proyecto")
+        void shouldGetMachineryAssignmentsSuccessfully() {
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+
+            ProjectMachineryAssignmentEntity assignment = new ProjectMachineryAssignmentEntity();
+            assignment.setId(UUID.randomUUID());
+            assignment.setProject(testProject);
+            assignment.setMachineryEquipment(testMachinery);
+            assignment.setAssignedDate(LocalDate.now());
+            assignment.setStatus("EN_USO");
+
+            when(projectMachineryAssignmentRepository.findByProjectId(projectId))
+                    .thenReturn(List.of(assignment));
+
+            List<ProjectMachineryAssignmentResponseDTO> result =
+                    projectExecutionService.getMachineryAssignments(projectId, testUserPrincipal);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getMachineryCode()).isEqualTo("MAQ-GEN-01");
+            assertThat(result.get(0).getStatus()).isEqualTo("EN_USO");
+        }
+
+        @Test
+        @DisplayName("Debe listar empleados asignados al proyecto")
+        void shouldGetEmployeeAssignmentsSuccessfully() {
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+
+            ProjectAssignmentEntity assignment = new ProjectAssignmentEntity();
+            assignment.setId(UUID.randomUUID());
+            assignment.setProject(testProject);
+            assignment.setEmployee(testEmployee);
+            assignment.setAssignedRole("Técnico");
+            assignment.setAssignedDate(LocalDate.now());
+            assignment.setIsActive(true);
+
+            when(projectAssignmentRepository.findByProjectId(projectId))
+                    .thenReturn(List.of(assignment));
+
+            List<ProjectAssignmentResponseDTO> result =
+                    projectExecutionService.getEmployeeAssignments(projectId, testUserPrincipal);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getEmployeeName()).contains("Carlos Mendoza");
+            assertThat(result.get(0).getAssignedRole()).isEqualTo("Técnico");
+        }
+    }
+
+    @Nested
+    @DisplayName("7. Liberación y Desasignación de Recursos")
+    class ReleaseResourcesTests {
+
+        @Test
+        @DisplayName("Debe liberar maquinaria y restaurar estado a DISPONIBLE")
+        void shouldReleaseMachinerySuccessfully() {
+            UUID assignmentId = UUID.randomUUID();
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+
+            ProjectMachineryAssignmentEntity assignment = new ProjectMachineryAssignmentEntity();
+            assignment.setId(assignmentId);
+            assignment.setProject(testProject);
+            assignment.setMachineryEquipment(testMachinery);
+            assignment.setStatus("EN_USO");
+
+            when(projectMachineryAssignmentRepository.findById(assignmentId)).thenReturn(Optional.of(assignment));
+
+            projectExecutionService.releaseMachineryAssignment(projectId, assignmentId, testUserPrincipal);
+
+            assertThat(testMachinery.getStatus()).isEqualTo("DISPONIBLE");
+            verify(machineryEquipmentRepository).save(testMachinery);
+            verify(projectMachineryAssignmentRepository).delete(assignment);
+        }
+
+        @Test
+        @DisplayName("Debe lanzar ResourceNotFoundException si la asignación de maquinaria no existe")
+        void shouldThrowWhenMachineryAssignmentNotFound() {
+            UUID unknownId = UUID.randomUUID();
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(projectMachineryAssignmentRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> projectExecutionService.releaseMachineryAssignment(projectId, unknownId, testUserPrincipal))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("Debe desasignar empleado del proyecto correctamente")
+        void shouldRemoveEmployeeAssignmentSuccessfully() {
+            UUID assignmentId = UUID.randomUUID();
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+
+            ProjectAssignmentEntity assignment = new ProjectAssignmentEntity();
+            assignment.setId(assignmentId);
+            assignment.setProject(testProject);
+            assignment.setEmployee(testEmployee);
+
+            when(projectAssignmentRepository.findById(assignmentId)).thenReturn(Optional.of(assignment));
+
+            projectExecutionService.removeEmployeeAssignment(projectId, assignmentId, testUserPrincipal);
+
+            verify(projectAssignmentRepository).delete(assignment);
+        }
+
+        @Test
+        @DisplayName("Debe lanzar BusinessRuleException si la asignación no pertenece al proyecto")
+        void shouldThrowWhenAssignmentBelongsToOtherProject() {
+            UUID assignmentId = UUID.randomUUID();
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+
+            ProjectEntity otherProject = new ProjectEntity();
+            otherProject.setId(UUID.randomUUID());
+
+            ProjectAssignmentEntity assignment = new ProjectAssignmentEntity();
+            assignment.setId(assignmentId);
+            assignment.setProject(otherProject);
+
+            when(projectAssignmentRepository.findById(assignmentId)).thenReturn(Optional.of(assignment));
+
+            assertThatThrownBy(() -> projectExecutionService.removeEmployeeAssignment(projectId, assignmentId, testUserPrincipal))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("La asignación no corresponde al proyecto indicado");
         }
     }
 }
