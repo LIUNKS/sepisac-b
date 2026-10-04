@@ -1,8 +1,10 @@
 package com.sepisac.backend.service;
 
+import com.sepisac.backend.dto.InvoiceFilterDTO;
 import com.sepisac.backend.dto.InvoicePaymentCreateDTO;
 import com.sepisac.backend.dto.InvoicePaymentResponseDTO;
 import com.sepisac.backend.dto.InvoiceResponseDTO;
+import com.sepisac.backend.dto.PageResponseDTO;
 import com.sepisac.backend.exception.BusinessRuleException;
 import com.sepisac.backend.exception.OverpaymentException;
 import com.sepisac.backend.exception.ResourceNotFoundException;
@@ -10,6 +12,10 @@ import com.sepisac.backend.model.*;
 import com.sepisac.backend.repository.*;
 import com.sepisac.backend.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -282,5 +288,86 @@ public class InvoiceService {
                 invoice.getDueDate(),
                 invoice.getCreatedAt()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponseDTO<InvoiceResponseDTO> getInvoicesPaged(InvoiceFilterDTO filter, UserPrincipal currentUser) {
+        UUID effectiveCompanyId = resolveCompanyId(filter != null ? filter.getCompanyId() : null, currentUser);
+
+        int page = (filter != null && filter.getPage() >= 0) ? filter.getPage() : 0;
+        int size = (filter != null && filter.getSize() > 0) ? filter.getSize() : 10;
+        String sortStr = (filter != null && filter.getSort() != null) ? filter.getSort() : "createdAt,desc";
+
+        Sort.Direction direction = Sort.Direction.DESC;
+        String property = "createdAt";
+        if (sortStr != null && !sortStr.trim().isEmpty()) {
+            String[] parts = sortStr.split(",");
+            property = parts[0].trim();
+            if (parts.length > 1 && "asc".equalsIgnoreCase(parts[1].trim())) {
+                direction = Sort.Direction.ASC;
+            }
+        }
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, property));
+
+        String status = (filter != null && filter.getStatus() != null && !filter.getStatus().trim().isEmpty()) 
+                ? filter.getStatus().trim().toUpperCase() : null;
+        String search = (filter != null && filter.getSearch() != null && !filter.getSearch().trim().isEmpty())
+                ? "%" + filter.getSearch().trim().toLowerCase() + "%" : null;
+
+        Page<InvoiceEntity> pageResult;
+        if (effectiveCompanyId != null) {
+            pageResult = invoiceRepository.findByCompanyIdWithFilters(effectiveCompanyId, status, search, pageable);
+        } else {
+            pageResult = invoiceRepository.findAllWithFiltersGlobal(status, search, pageable);
+        }
+
+        List<InvoiceResponseDTO> content = pageResult.getContent().stream()
+                .map(inv -> {
+                    BigDecimal paid = invoicePaymentRepository.sumAmountPaidByInvoiceId(inv.getId());
+                    return mapToInvoiceDTO(inv, paid != null ? paid : BigDecimal.ZERO);
+                })
+                .collect(Collectors.toList());
+
+        return new PageResponseDTO<>(
+                content,
+                pageResult.getNumber(),
+                pageResult.getSize(),
+                pageResult.getTotalElements(),
+                pageResult.getTotalPages(),
+                pageResult.isFirst(),
+                pageResult.isLast()
+        );
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public InvoiceResponseDTO cancelInvoice(UUID invoiceId, String reason, UserPrincipal currentUser) {
+        InvoiceEntity invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Factura no encontrada con ID: " + invoiceId));
+
+        enforceTenantAccess(invoice.getCompany().getId(), currentUser);
+
+        if ("ANULADA".equalsIgnoreCase(invoice.getPaymentStatus())) {
+            throw new BusinessRuleException("La factura ya se encuentra anulada.");
+        }
+
+        BigDecimal totalPaid = invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId);
+        if (totalPaid != null && totalPaid.compareTo(BigDecimal.ZERO) > 0) {
+            throw new BusinessRuleException("No se puede anular una factura con pagos registrados. Debe reversar o anular los abonos primero.");
+        }
+
+        invoice.setPaymentStatus("ANULADA");
+        InvoiceEntity updated = invoiceRepository.save(invoice);
+
+        if (currentUser != null) {
+            auditLogService.log(
+                    updated.getCompany().getId(),
+                    currentUser.getId(),
+                    "INVOICE_CANCELLED",
+                    "FINANCE",
+                    "Factura anulada: " + updated.getInvoiceNumber() + ". Motivo: " + (reason != null ? reason : "Sin motivo especificado")
+            );
+        }
+
+        return mapToInvoiceDTO(updated, BigDecimal.ZERO);
     }
 }
