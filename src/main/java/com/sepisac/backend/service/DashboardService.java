@@ -144,7 +144,7 @@ public class DashboardService {
     }
 
     /**
-     * RN-D08: KPI de Facturación / Ingresos
+     * RN-D08: KPI de FacturaciÃ³n / Ingresos
      */
     public RevenueKpiResponseDTO getRevenueKpi(UUID companyId, LocalDate from, LocalDate to, String groupBy) {
         if (companyId == null) {
@@ -524,5 +524,207 @@ public class DashboardService {
         BigDecimal avg = BigDecimal.valueOf(sum)
                 .divide(BigDecimal.valueOf(daysList.size()), 2, RoundingMode.HALF_UP);
         return new TotalKpiDTO(avg, daysList.size());
+    }
+
+    public DashboardResponseDTO getUnifiedDashboardData(UUID companyId) {
+        if (companyId == null) {
+            throw new IllegalArgumentException("VALIDATION_ERROR: companyId es requerido");
+        }
+
+        DashboardResponseDTO response = new DashboardResponseDTO();
+        LocalDate today = LocalDate.now();
+        int currentYear = today.getYear();
+        int currentMonth = today.getMonthValue();
+
+        LocalDate prevMonthDate = today.minusMonths(1);
+        int prevYear = prevMonthDate.getYear();
+        int prevMonth = prevMonthDate.getMonthValue();
+
+        // 1. Ingresos Mensuales (Payments)
+        List<InvoicePaymentEntity> payments = invoicePaymentRepository.findByCompanyId(companyId);
+        if (payments == null) payments = Collections.emptyList();
+
+        BigDecimal ingresosCurrent = BigDecimal.ZERO;
+        BigDecimal ingresosPrev = BigDecimal.ZERO;
+
+        for (InvoicePaymentEntity payment : payments) {
+            if (payment == null || payment.getPaymentDate() == null || payment.getAmountPaid() == null) continue;
+            LocalDate pDate = payment.getPaymentDate().toLocalDate();
+            if (pDate.getYear() == currentYear && pDate.getMonthValue() == currentMonth) {
+                ingresosCurrent = ingresosCurrent.add(payment.getAmountPaid());
+            } else if (pDate.getYear() == prevYear && pDate.getMonthValue() == prevMonth) {
+                ingresosPrev = ingresosPrev.add(payment.getAmountPaid());
+            }
+        }
+        response.setIngresosMensuales(ingresosCurrent);
+
+        BigDecimal ingresosTrend = BigDecimal.ZERO;
+        if (ingresosPrev.compareTo(BigDecimal.ZERO) > 0) {
+            ingresosTrend = ingresosCurrent.subtract(ingresosPrev)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(ingresosPrev, 1, RoundingMode.HALF_UP);
+        } else if (ingresosCurrent.compareTo(BigDecimal.ZERO) > 0) {
+            ingresosTrend = BigDecimal.valueOf(100.0);
+        }
+        response.setIngresosTrend(ingresosTrend);
+
+        // 2. Egresos Mensuales (Purchase Orders)
+        List<PurchaseOrderEntity> pos = purchaseOrderRepository.findByCompanyId(companyId);
+        if (pos == null) pos = Collections.emptyList();
+
+        BigDecimal egresosCurrent = BigDecimal.ZERO;
+        BigDecimal egresosPrev = BigDecimal.ZERO;
+
+        for (PurchaseOrderEntity po : pos) {
+            if (po == null || po.getCreatedAt() == null || po.getTotalAmount() == null) continue;
+            if ("CANCELADA".equalsIgnoreCase(po.getStatus())) continue;
+            LocalDate poDate = po.getCreatedAt().toLocalDate();
+            if (poDate.getYear() == currentYear && poDate.getMonthValue() == currentMonth) {
+                egresosCurrent = egresosCurrent.add(po.getTotalAmount());
+            } else if (poDate.getYear() == prevYear && poDate.getMonthValue() == prevMonth) {
+                egresosPrev = egresosPrev.add(po.getTotalAmount());
+            }
+        }
+        response.setEgresosMensuales(egresosCurrent);
+
+        BigDecimal egresosTrend = BigDecimal.ZERO;
+        if (egresosPrev.compareTo(BigDecimal.ZERO) > 0) {
+            egresosTrend = egresosCurrent.subtract(egresosPrev)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(egresosPrev, 1, RoundingMode.HALF_UP);
+        } else if (egresosCurrent.compareTo(BigDecimal.ZERO) > 0) {
+            egresosTrend = BigDecimal.valueOf(100.0);
+        }
+        response.setEgresosTrend(egresosTrend);
+
+        // 3. Cotizaciones Aprobadas
+        List<QuotationEntity> quotations = quotationRepository.findByCompanyId(companyId);
+        if (quotations == null) quotations = Collections.emptyList();
+
+        int cotizacionesApprovedCurrent = 0;
+        int cotizacionesApprovedPrev = 0;
+
+        for (QuotationEntity q : quotations) {
+            if (q == null || q.getStatus() == null) continue;
+            if ("APROBADA".equalsIgnoreCase(q.getStatus())) {
+                LocalDate qDate = q.getCreatedAt() != null ? q.getCreatedAt().toLocalDate() : today;
+                if (qDate.getYear() == currentYear && qDate.getMonthValue() == currentMonth) {
+                    cotizacionesApprovedCurrent++;
+                } else if (qDate.getYear() == prevYear && qDate.getMonthValue() == prevMonth) {
+                    cotizacionesApprovedPrev++;
+                }
+            }
+        }
+        response.setCotizacionesAprobadas(cotizacionesApprovedCurrent);
+        response.setCotizacionesTrend(cotizacionesApprovedCurrent - cotizacionesApprovedPrev);
+
+        // 4. Proyectos Activos y por Terminar
+        List<ProjectEntity> projects = projectRepository.findByCompanyId(companyId);
+        if (projects == null) projects = Collections.emptyList();
+
+        int activos = 0;
+        int terminanPronto = 0;
+        LocalDate thresholdSoon = today.plusDays(30);
+
+        int countEnProceso = 0;
+        int countPendiente = 0;
+        int countCompletado = 0;
+        int countCancelado = 0;
+
+        for (ProjectEntity p : projects) {
+            if (p == null) continue;
+            String st = p.getStatus() != null ? p.getStatus().toUpperCase() : "PENDIENTE";
+            boolean isActivo = st.contains("PROCESO") || st.contains("PROGRESO");
+            if (isActivo) {
+                activos++;
+                countEnProceso++;
+                if (p.getEndDate() != null && !p.getEndDate().isBefore(today) && !p.getEndDate().isAfter(thresholdSoon)) {
+                    terminanPronto++;
+                }
+            } else if (st.contains("COMPLET")) {
+                countCompletado++;
+            } else if (st.contains("CANCEL")) {
+                countCancelado++;
+            } else {
+                countPendiente++;
+            }
+        }
+        response.setProyectosActivos(activos);
+        response.setProyectosTerminanPronto(terminanPronto);
+
+        // 5. Estado de Proyectos (PieData)
+        List<DashboardResponseDTO.PieData> pieDataList = new ArrayList<>();
+        pieDataList.add(new DashboardResponseDTO.PieData("En Proceso", countEnProceso, "#0062ff"));
+        pieDataList.add(new DashboardResponseDTO.PieData("Pendientes", countPendiente, "#eab308"));
+        pieDataList.add(new DashboardResponseDTO.PieData("Completados", countCompletado, "#16a34a"));
+        pieDataList.add(new DashboardResponseDTO.PieData("Cancelados", countCancelado, "#ef4444"));
+        response.setEstadoProyectos(pieDataList);
+
+        // 6. Ingresos vs Egresos (Ultimos 8 meses, en miles)
+        String[] monthNames = {"Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Set", "Oct", "Nov", "Dic"};
+        List<DashboardResponseDTO.ChartData> chartDataList = new ArrayList<>();
+
+        for (int i = 7; i >= 0; i--) {
+            LocalDate mDate = today.minusMonths(i);
+            int y = mDate.getYear();
+            int m = mDate.getMonthValue();
+            String name = monthNames[m - 1];
+
+            BigDecimal mIngresos = BigDecimal.ZERO;
+            for (InvoicePaymentEntity pay : payments) {
+                if (pay.getPaymentDate() == null || pay.getAmountPaid() == null) continue;
+                LocalDate d = pay.getPaymentDate().toLocalDate();
+                if (d.getYear() == y && d.getMonthValue() == m) {
+                    mIngresos = mIngresos.add(pay.getAmountPaid());
+                }
+            }
+
+            BigDecimal mEgresos = BigDecimal.ZERO;
+            for (PurchaseOrderEntity po : pos) {
+                if (po.getCreatedAt() == null || po.getTotalAmount() == null) continue;
+                if ("CANCELADA".equalsIgnoreCase(po.getStatus())) continue;
+                LocalDate d = po.getCreatedAt().toLocalDate();
+                if (d.getYear() == y && d.getMonthValue() == m) {
+                    mEgresos = mEgresos.add(po.getTotalAmount());
+                }
+            }
+
+            BigDecimal inThousands = mIngresos.divide(BigDecimal.valueOf(1000), 2, RoundingMode.HALF_UP);
+            BigDecimal egThousands = mEgresos.divide(BigDecimal.valueOf(1000), 2, RoundingMode.HALF_UP);
+
+            chartDataList.add(new DashboardResponseDTO.ChartData(name, inThousands, egThousands));
+        }
+        response.setIngresosVsEgresos(chartDataList);
+
+        // 7. Proyectos Recientes (Top 5 ordenados por fecha de creacion desc)
+        List<ProjectResponseDTO> recentProjects = projects.stream()
+                .sorted((a, b) -> {
+                    OffsetDateTime timeA = a.getCreatedAt() != null ? a.getCreatedAt() : OffsetDateTime.MIN;
+                    OffsetDateTime timeB = b.getCreatedAt() != null ? b.getCreatedAt() : OffsetDateTime.MIN;
+                    return timeB.compareTo(timeA);
+                })
+                .limit(5)
+                .map(this::mapProjectToDTO)
+                .collect(Collectors.toList());
+        response.setProyectosRecientes(recentProjects);
+
+        return response;
+    }
+
+    private ProjectResponseDTO mapProjectToDTO(ProjectEntity p) {
+        ProjectResponseDTO dto = new ProjectResponseDTO();
+        dto.setId(p.getId());
+        dto.setCompanyId(p.getCompany() != null ? p.getCompany().getId() : null);
+        dto.setQuotationId(p.getQuotation() != null ? p.getQuotation().getId() : null);
+        dto.setCode(p.getCode());
+        dto.setTitle(p.getTitle());
+        dto.setDescription(p.getDescription());
+        dto.setStatus(p.getStatus());
+        dto.setStartDate(p.getStartDate());
+        dto.setEndDate(p.getEndDate());
+        dto.setClientName(p.getClientName());
+        dto.setCreatedAt(p.getCreatedAt());
+        dto.setUpdatedAt(p.getUpdatedAt());
+        return dto;
     }
 }

@@ -21,6 +21,8 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrderEnti
 
     Optional<PurchaseOrderEntity> findByCompanyIdAndId(UUID companyId, UUID id);
 
+    List<PurchaseOrderEntity> findByCompanyId(UUID companyId);
+
     Page<PurchaseOrderEntity> findByCompanyIdAndStatusOrderByCreatedAtDesc(UUID companyId, String status, Pageable pageable);
 
     Page<PurchaseOrderEntity> findByCompanyIdOrderByCreatedAtDesc(UUID companyId, Pageable pageable);

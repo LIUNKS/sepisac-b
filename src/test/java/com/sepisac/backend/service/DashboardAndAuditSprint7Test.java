@@ -697,4 +697,24 @@ class DashboardAndAuditSprint7Test {
         assertThat(dto.getNewValues()).doesNotContainKey("token");
         assertThat(dto.getNewValues()).containsKey("username");
     }
+
+    @Test
+    @DisplayName("D-T19: getUnifiedDashboardData - aggregates KPIs, monthly charts and recent projects")
+    void testGetUnifiedDashboardData() {
+        when(invoicePaymentRepository.findByCompanyId(companyId)).thenReturn(Collections.emptyList());
+        when(purchaseOrderRepository.findByCompanyId(companyId)).thenReturn(Collections.emptyList());
+        when(quotationRepository.findByCompanyId(companyId)).thenReturn(Collections.emptyList());
+        when(projectRepository.findByCompanyId(companyId)).thenReturn(Collections.emptyList());
+
+        DashboardResponseDTO result = dashboardService.getUnifiedDashboardData(companyId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getIngresosMensuales()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.getEgresosMensuales()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.getCotizacionesAprobadas()).isEqualTo(0);
+        assertThat(result.getProyectosActivos()).isEqualTo(0);
+        assertThat(result.getIngresosVsEgresos()).hasSize(8);
+        assertThat(result.getEstadoProyectos()).isNotEmpty();
+        assertThat(result.getProyectosRecientes()).isEmpty();
+    }
 }
