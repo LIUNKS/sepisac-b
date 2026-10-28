@@ -22,7 +22,10 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID> {
 
     long countByCompanyId(UUID companyId);
 
-    @Query("SELECT p FROM ProjectEntity p WHERE p.company.id = :companyId " +
+    @Query(value = "SELECT p FROM ProjectEntity p LEFT JOIN FETCH p.company LEFT JOIN FETCH p.quotation WHERE p.company.id = :companyId " +
+            "AND (:status IS NULL OR p.status = :status) " +
+            "AND (:search IS NULL OR LOWER(p.code) LIKE :search OR LOWER(p.title) LIKE :search OR LOWER(p.clientName) LIKE :search)",
+            countQuery = "SELECT count(p) FROM ProjectEntity p WHERE p.company.id = :companyId " +
             "AND (:status IS NULL OR p.status = :status) " +
             "AND (:search IS NULL OR LOWER(p.code) LIKE :search OR LOWER(p.title) LIKE :search OR LOWER(p.clientName) LIKE :search)")
     Page<ProjectEntity> findByCompanyIdWithFilters(
@@ -31,7 +34,10 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, UUID> {
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT p FROM ProjectEntity p WHERE " +
+    @Query(value = "SELECT p FROM ProjectEntity p LEFT JOIN FETCH p.company LEFT JOIN FETCH p.quotation WHERE " +
+            "(:status IS NULL OR p.status = :status) " +
+            "AND (:search IS NULL OR LOWER(p.code) LIKE :search OR LOWER(p.title) LIKE :search OR LOWER(p.clientName) LIKE :search)",
+            countQuery = "SELECT count(p) FROM ProjectEntity p WHERE " +
             "(:status IS NULL OR p.status = :status) " +
             "AND (:search IS NULL OR LOWER(p.code) LIKE :search OR LOWER(p.title) LIKE :search OR LOWER(p.clientName) LIKE :search)")
     Page<ProjectEntity> findAllWithFiltersGlobal(

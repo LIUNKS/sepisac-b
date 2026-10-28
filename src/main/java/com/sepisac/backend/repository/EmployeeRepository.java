@@ -16,7 +16,11 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
 
     List<EmployeeEntity> findByCompanyId(UUID companyId);
 
-    @Query("SELECT e FROM EmployeeEntity e WHERE e.company.id = :companyId " +
+    @Query(value = "SELECT e FROM EmployeeEntity e LEFT JOIN FETCH e.company LEFT JOIN FETCH e.user WHERE e.company.id = :companyId " +
+            "AND (:contractType IS NULL OR e.contractType = :contractType) " +
+            "AND (:isAvailable IS NULL OR e.isAvailable = :isAvailable) " +
+            "AND (:search IS NULL OR (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.specialty) LIKE LOWER(CONCAT('%', :search, '%'))))",
+            countQuery = "SELECT count(e) FROM EmployeeEntity e WHERE e.company.id = :companyId " +
             "AND (:contractType IS NULL OR e.contractType = :contractType) " +
             "AND (:isAvailable IS NULL OR e.isAvailable = :isAvailable) " +
             "AND (:search IS NULL OR (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.specialty) LIKE LOWER(CONCAT('%', :search, '%'))))")
@@ -27,7 +31,11 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT e FROM EmployeeEntity e WHERE (:companyId IS NULL OR e.company.id = :companyId) " +
+    @Query(value = "SELECT e FROM EmployeeEntity e LEFT JOIN FETCH e.company LEFT JOIN FETCH e.user WHERE (:companyId IS NULL OR e.company.id = :companyId) " +
+            "AND (:contractType IS NULL OR e.contractType = :contractType) " +
+            "AND (:isAvailable IS NULL OR e.isAvailable = :isAvailable) " +
+            "AND (:search IS NULL OR (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.specialty) LIKE LOWER(CONCAT('%', :search, '%'))))",
+            countQuery = "SELECT count(e) FROM EmployeeEntity e WHERE (:companyId IS NULL OR e.company.id = :companyId) " +
             "AND (:contractType IS NULL OR e.contractType = :contractType) " +
             "AND (:isAvailable IS NULL OR e.isAvailable = :isAvailable) " +
             "AND (:search IS NULL OR (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(e.specialty) LIKE LOWER(CONCAT('%', :search, '%'))))")

@@ -30,9 +30,11 @@ import java.util.UUID;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final com.sepisac.backend.service.ProjectSeedService projectSeedService;
 
-    public DashboardController(DashboardService dashboardService) {
+    public DashboardController(DashboardService dashboardService, com.sepisac.backend.service.ProjectSeedService projectSeedService) {
         this.dashboardService = dashboardService;
+        this.projectSeedService = projectSeedService;
     }
 
     @GetMapping("/kpis/commercial-cycle")
@@ -115,38 +117,47 @@ public class DashboardController {
         return ResponseEntity.ok(response);
     }
 
-    
     @GetMapping("/{companyId}")
     @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA')")
-    public ResponseEntity<com.sepisac.backend.dto.DashboardResponseDTO> getDashboardData(
+    @Operation(summary = "Obtener datos consolidados del Dashboard", description = "Calcula metricas agregadas de ingresos, egresos, cotizaciones y proyectos para la empresa especificada.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Datos del dashboard obtenidos exitosamente", content = @Content(schema = @Schema(implementation = DashboardResponseDTO.class))),
+            @ApiResponse(responseCode = "403", description = "Acceso denegado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<DashboardResponseDTO> getDashboardData(
             @PathVariable UUID companyId,
             @AuthenticationPrincipal UserPrincipal currentUser) {
         
         UUID targetCompanyId = resolveCompanyId(companyId, currentUser);
-        // FIXME: For now we return empty/dummy data to unblock the frontend 500 error!
-        // The service layer hasn't implemented the unified dashboard aggregation.
-        com.sepisac.backend.dto.DashboardResponseDTO dummy = new com.sepisac.backend.dto.DashboardResponseDTO();
-        dummy.setIngresosMensuales(java.math.BigDecimal.ZERO);
-        dummy.setIngresosTrend(java.math.BigDecimal.ZERO);
-        dummy.setEgresosMensuales(java.math.BigDecimal.ZERO);
-        dummy.setEgresosTrend(java.math.BigDecimal.ZERO);
-        dummy.setCotizacionesAprobadas(0);
-        dummy.setCotizacionesTrend(0);
-        dummy.setProyectosActivos(0);
-        dummy.setProyectosTerminanPronto(0);
-        dummy.setIngresosVsEgresos(java.util.Collections.emptyList());
-        dummy.setEstadoProyectos(java.util.Collections.emptyList());
-        dummy.setProyectosRecientes(java.util.Collections.emptyList());
-        
-        return ResponseEntity.ok(dummy);
+        DashboardResponseDTO response = dashboardService.getUnifiedDashboardData(targetCompanyId);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{companyId}/seed")
-    @PreAuthorize("hasAnyRole('SUPERADMIN')")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA')")
+    @Operation(summary = "Generar datos de prueba para Dashboard", description = "Puebla datos masivos e integrados para pruebas operativas y financieras.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Datos de prueba generados exitosamente"),
+            @ApiResponse(responseCode = "403", description = "Acceso denegado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
     public ResponseEntity<Void> seedDashboardData(
             @PathVariable UUID companyId,
             @AuthenticationPrincipal UserPrincipal currentUser) {
-        // Dummy seed endpoint
+        
+        UUID targetCompanyId = resolveCompanyId(companyId, currentUser);
+        if (projectSeedService != null) {
+            projectSeedService.seedProjectsData(targetCompanyId);
+        }
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/seed-all")
+    @PreAuthorize("hasAnyRole('SUPERADMIN')")
+    @Operation(summary = "Poblar datos masivos para todas las empresas", description = "Genera datos masivos reales e integrados de inventario, maquinaria, personal, proyectos, facturas y proveedores en todas las empresas.")
+    public ResponseEntity<Void> seedAllCompaniesData() {
+        if (projectSeedService != null) {
+            projectSeedService.seedAllCompaniesData();
+        }
         return ResponseEntity.ok().build();
     }
 

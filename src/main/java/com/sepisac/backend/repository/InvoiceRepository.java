@@ -27,7 +27,14 @@ public interface InvoiceRepository extends JpaRepository<InvoiceEntity, UUID> {
 
     List<InvoiceEntity> findByPaymentStatus(String paymentStatus);
 
-    @Query("SELECT i FROM InvoiceEntity i WHERE i.company.id = :companyId " +
+    @Query(value = "SELECT i FROM InvoiceEntity i " +
+            "LEFT JOIN FETCH i.company " +
+            "LEFT JOIN FETCH i.quotation " +
+            "LEFT JOIN FETCH i.project " +
+            "WHERE i.company.id = :companyId " +
+            "AND (:status IS NULL OR i.paymentStatus = :status) " +
+            "AND (:search IS NULL OR LOWER(i.invoiceNumber) LIKE :search OR LOWER(i.quotation.clientName) LIKE :search)",
+            countQuery = "SELECT count(i) FROM InvoiceEntity i WHERE i.company.id = :companyId " +
             "AND (:status IS NULL OR i.paymentStatus = :status) " +
             "AND (:search IS NULL OR LOWER(i.invoiceNumber) LIKE :search OR LOWER(i.quotation.clientName) LIKE :search)")
     Page<InvoiceEntity> findByCompanyIdWithFilters(
@@ -36,7 +43,13 @@ public interface InvoiceRepository extends JpaRepository<InvoiceEntity, UUID> {
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT i FROM InvoiceEntity i WHERE " +
+    @Query(value = "SELECT i FROM InvoiceEntity i " +
+            "LEFT JOIN FETCH i.company " +
+            "LEFT JOIN FETCH i.quotation " +
+            "LEFT JOIN FETCH i.project " +
+            "WHERE (:status IS NULL OR i.paymentStatus = :status) " +
+            "AND (:search IS NULL OR LOWER(i.invoiceNumber) LIKE :search OR LOWER(i.quotation.clientName) LIKE :search)",
+            countQuery = "SELECT count(i) FROM InvoiceEntity i WHERE " +
             "(:status IS NULL OR i.paymentStatus = :status) " +
             "AND (:search IS NULL OR LOWER(i.invoiceNumber) LIKE :search OR LOWER(i.quotation.clientName) LIKE :search)")
     Page<InvoiceEntity> findAllWithFiltersGlobal(
