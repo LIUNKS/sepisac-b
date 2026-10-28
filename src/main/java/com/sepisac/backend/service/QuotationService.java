@@ -26,6 +26,8 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 
 @Service
@@ -186,10 +188,25 @@ public class QuotationService {
             pageResult = quotationRepository.findAllWithFiltersGlobal(statusParam, serviceTypeParam, searchParam, pageable);
         }
 
-        List<QuotationResponseDTO> content = pageResult.getContent().stream()
+        List<QuotationEntity> quotations = pageResult.getContent();
+        List<UUID> quotationIds = quotations.stream().map(QuotationEntity::getId).toList();
+
+        Map<UUID, Integer> detailsCountMap = new HashMap<>();
+        Map<UUID, Integer> laborCountMap = new HashMap<>();
+
+        if (!quotationIds.isEmpty()) {
+            for (Object[] row : detailRepository.countByQuotationIds(quotationIds)) {
+                detailsCountMap.put((UUID) row[0], ((Number) row[1]).intValue());
+            }
+            for (Object[] row : laborRepository.countByQuotationIds(quotationIds)) {
+                laborCountMap.put((UUID) row[0], ((Number) row[1]).intValue());
+            }
+        }
+
+        List<QuotationResponseDTO> content = quotations.stream()
                 .map(q -> {
-                    int detailsCount = detailRepository.countByQuotationId(q.getId());
-                    int laborCount = laborRepository.countByQuotationId(q.getId());
+                    int detailsCount = detailsCountMap.getOrDefault(q.getId(), 0);
+                    int laborCount = laborCountMap.getOrDefault(q.getId(), 0);
                     return mapToSummaryDTO(q, detailsCount, laborCount);
                 })
                 .toList();

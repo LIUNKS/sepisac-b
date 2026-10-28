@@ -29,7 +29,11 @@ public interface QuotationRepository extends JpaRepository<QuotationEntity, UUID
             @Param("from") java.time.OffsetDateTime from,
             @Param("to") java.time.OffsetDateTime to);
 
-    @Query("SELECT q FROM QuotationEntity q WHERE q.company.id = :companyId " +
+    @Query(value = "SELECT q FROM QuotationEntity q LEFT JOIN FETCH q.company WHERE q.company.id = :companyId " +
+            "AND (:status IS NULL OR q.status = :status) " +
+            "AND (:serviceType IS NULL OR q.serviceType = :serviceType) " +
+            "AND (:search IS NULL OR (LOWER(q.quotationNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(q.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))",
+            countQuery = "SELECT count(q) FROM QuotationEntity q WHERE q.company.id = :companyId " +
             "AND (:status IS NULL OR q.status = :status) " +
             "AND (:serviceType IS NULL OR q.serviceType = :serviceType) " +
             "AND (:search IS NULL OR (LOWER(q.quotationNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(q.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))")
@@ -40,7 +44,11 @@ public interface QuotationRepository extends JpaRepository<QuotationEntity, UUID
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT q FROM QuotationEntity q WHERE (:companyId IS NULL OR q.company.id = :companyId) " +
+    @Query(value = "SELECT q FROM QuotationEntity q LEFT JOIN FETCH q.company WHERE (:companyId IS NULL OR q.company.id = :companyId) " +
+            "AND (:status IS NULL OR q.status = :status) " +
+            "AND (:serviceType IS NULL OR q.serviceType = :serviceType) " +
+            "AND (:search IS NULL OR (LOWER(q.quotationNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(q.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))",
+            countQuery = "SELECT count(q) FROM QuotationEntity q WHERE (:companyId IS NULL OR q.company.id = :companyId) " +
             "AND (:status IS NULL OR q.status = :status) " +
             "AND (:serviceType IS NULL OR q.serviceType = :serviceType) " +
             "AND (:search IS NULL OR (LOWER(q.quotationNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(q.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))")
@@ -51,7 +59,11 @@ public interface QuotationRepository extends JpaRepository<QuotationEntity, UUID
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT q FROM QuotationEntity q WHERE " +
+    @Query(value = "SELECT q FROM QuotationEntity q LEFT JOIN FETCH q.company WHERE " +
+            "(:status IS NULL OR q.status = :status) " +
+            "AND (:serviceType IS NULL OR q.serviceType = :serviceType) " +
+            "AND (:search IS NULL OR (LOWER(q.quotationNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(q.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))",
+            countQuery = "SELECT count(q) FROM QuotationEntity q WHERE " +
             "(:status IS NULL OR q.status = :status) " +
             "AND (:serviceType IS NULL OR q.serviceType = :serviceType) " +
             "AND (:search IS NULL OR (LOWER(q.quotationNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(q.clientName) LIKE LOWER(CONCAT('%', :search, '%'))))")
