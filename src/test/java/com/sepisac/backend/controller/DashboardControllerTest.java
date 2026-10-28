@@ -46,6 +46,9 @@ class DashboardControllerTest {
     @Mock
     private DashboardService dashboardService;
 
+    @Mock
+    private com.sepisac.backend.service.ProjectSeedService projectSeedService;
+
     @InjectMocks
     private DashboardController dashboardController;
 
@@ -165,5 +168,36 @@ class DashboardControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].sku", is("MAT-01")))
                 .andExpect(jsonPath("$.totalElements", is(1)));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/dashboard/{companyId} - returns unified dashboard DTO")
+    void testGetUnifiedDashboard() throws Exception {
+        DashboardResponseDTO response = new DashboardResponseDTO();
+        response.setIngresosMensuales(new BigDecimal("15000.00"));
+        response.setCotizacionesAprobadas(5);
+        response.setProyectosActivos(3);
+        response.setIngresosVsEgresos(Collections.emptyList());
+        response.setEstadoProyectos(Collections.emptyList());
+        response.setProyectosRecientes(Collections.emptyList());
+
+        when(dashboardService.getUnifiedDashboardData(companyId)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/dashboard/" + companyId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ingresosMensuales", is(15000.00)))
+                .andExpect(jsonPath("$.cotizacionesAprobadas", is(5)))
+                .andExpect(jsonPath("$.proyectosActivos", is(3)));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/dashboard/{companyId}/seed - triggers project seed")
+    void testSeedDashboard() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/dashboard/" + companyId + "/seed")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(projectSeedService).seedProjectsData(companyId);
     }
 }

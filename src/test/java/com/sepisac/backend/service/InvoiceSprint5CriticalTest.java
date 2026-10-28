@@ -127,7 +127,8 @@ class InvoiceSprint5CriticalTest {
             // Primer pago de S/. 400 -> estado debe cambiar a PARCIAL.
             when(invoiceRepository.findById(invoiceId)).thenReturn(Optional.of(testInvoice));
             // Antes del primer pago, total abonado es 0
-            when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            lenient().when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            lenient().when(invoicePaymentRepository.sumAmountPaidByInvoiceIds(any())).thenReturn(Collections.emptyList());
             when(invoicePaymentRepository.save(any(InvoicePaymentEntity.class))).thenAnswer(i -> {
                 InvoicePaymentEntity p = i.getArgument(0);
                 p.setId(UUID.randomUUID());
@@ -252,7 +253,8 @@ class InvoiceSprint5CriticalTest {
         void shouldListInvoicesFilteredByStatus() {
             when(invoiceRepository.findByCompanyIdAndPaymentStatus(tenantAId, "PENDIENTE"))
                     .thenReturn(List.of(testInvoice));
-            when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            lenient().when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            lenient().when(invoicePaymentRepository.sumAmountPaidByInvoiceIds(any())).thenReturn(Collections.emptyList());
 
             List<InvoiceResponseDTO> list = invoiceService.getInvoicesByStatus("PENDIENTE", tenantAId, userTenantA);
 
@@ -276,7 +278,8 @@ class InvoiceSprint5CriticalTest {
 
             when(invoiceRepository.findByCompanyIdWithFilters(eq(tenantAId), eq("PENDIENTE"), any(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(testInvoice)));
-            when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            lenient().when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            lenient().when(invoicePaymentRepository.sumAmountPaidByInvoiceIds(any())).thenReturn(Collections.emptyList());
 
             PageResponseDTO<InvoiceResponseDTO> result = invoiceService.getInvoicesPaged(filter, userTenantA);
 
@@ -289,7 +292,8 @@ class InvoiceSprint5CriticalTest {
         @DisplayName("Debe anular factura exitosamente cuando no tiene pagos")
         void shouldCancelInvoiceSuccessfullyWhenNoPayments() {
             when(invoiceRepository.findById(invoiceId)).thenReturn(Optional.of(testInvoice));
-            when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            lenient().when(invoicePaymentRepository.sumAmountPaidByInvoiceId(invoiceId)).thenReturn(BigDecimal.ZERO);
+            lenient().when(invoicePaymentRepository.sumAmountPaidByInvoiceIds(any())).thenReturn(Collections.emptyList());
             when(invoiceRepository.save(any(InvoiceEntity.class))).thenAnswer(i -> i.getArgument(0));
 
             InvoiceResponseDTO result = invoiceService.cancelInvoice(invoiceId, "Error en monto", userTenantA);

@@ -19,6 +19,9 @@ public interface InvoicePaymentRepository extends JpaRepository<InvoicePaymentEn
     @Query("SELECT COALESCE(SUM(p.amountPaid), 0) FROM InvoicePaymentEntity p WHERE p.invoice.id = :invoiceId")
     BigDecimal sumAmountPaidByInvoiceId(@Param("invoiceId") UUID invoiceId);
 
+    @Query("SELECT p.invoice.id, COALESCE(SUM(p.amountPaid), 0) FROM InvoicePaymentEntity p WHERE p.invoice.id IN :invoiceIds GROUP BY p.invoice.id")
+    List<Object[]> sumAmountPaidByInvoiceIds(@Param("invoiceIds") List<UUID> invoiceIds);
+
     @Query("SELECT p FROM InvoicePaymentEntity p WHERE p.invoice.company.id = :companyId " +
            "AND (p.invoice.isDeleted = false OR p.invoice.isDeleted IS NULL) " +
            "AND (cast(:from as java.time.OffsetDateTime) IS NULL OR p.paymentDate >= :from) " +
