@@ -23,7 +23,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -123,12 +126,7 @@ public class InvoiceService {
             invoices = invoiceRepository.findByPaymentStatus(normalizedStatus);
         }
 
-        return invoices.stream()
-                .map(inv -> {
-                    BigDecimal paid = invoicePaymentRepository.sumAmountPaidByInvoiceId(inv.getId());
-                    return mapToInvoiceDTO(inv, paid != null ? paid : BigDecimal.ZERO);
-                })
-                .collect(Collectors.toList());
+        return mapInvoicesToDTOs(invoices);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -290,6 +288,25 @@ public class InvoiceService {
         );
     }
 
+    private List<InvoiceResponseDTO> mapInvoicesToDTOs(List<InvoiceEntity> invoices) {
+        if (invoices == null || invoices.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<UUID> invoiceIds = invoices.stream().map(InvoiceEntity::getId).toList();
+        Map<UUID, BigDecimal> paidMap = new HashMap<>();
+        List<Object[]> paidRows = invoicePaymentRepository.sumAmountPaidByInvoiceIds(invoiceIds);
+        for (Object[] row : paidRows) {
+            UUID invId = (UUID) row[0];
+            BigDecimal sum = (BigDecimal) row[1];
+            paidMap.put(invId, sum != null ? sum : BigDecimal.ZERO);
+        }
+
+        return invoices.stream()
+                .map(inv -> mapToInvoiceDTO(inv, paidMap.getOrDefault(inv.getId(), BigDecimal.ZERO)))
+                .collect(Collectors.toList());
+    }
+
     @Transactional(readOnly = true)
     public PageResponseDTO<InvoiceResponseDTO> getInvoicesPaged(InvoiceFilterDTO filter, UserPrincipal currentUser) {
         UUID effectiveCompanyId = resolveCompanyId(filter != null ? filter.getCompanyId() : null, currentUser);
@@ -321,12 +338,7 @@ public class InvoiceService {
             pageResult = invoiceRepository.findAllWithFiltersGlobal(status, search, pageable);
         }
 
-        List<InvoiceResponseDTO> content = pageResult.getContent().stream()
-                .map(inv -> {
-                    BigDecimal paid = invoicePaymentRepository.sumAmountPaidByInvoiceId(inv.getId());
-                    return mapToInvoiceDTO(inv, paid != null ? paid : BigDecimal.ZERO);
-                })
-                .collect(Collectors.toList());
+        List<InvoiceResponseDTO> content = mapInvoicesToDTOs(pageResult.getContent());
 
         return new PageResponseDTO<>(
                 content,
