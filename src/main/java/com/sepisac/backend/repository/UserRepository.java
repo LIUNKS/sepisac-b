@@ -27,7 +27,13 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     boolean existsByCompanyIdAndUsername(UUID companyId, String username);
 
-    @Query("SELECT u FROM UserEntity u WHERE u.company.id = :companyId " +
+    @Query(value = "SELECT u FROM UserEntity u LEFT JOIN FETCH u.company LEFT JOIN FETCH u.role WHERE u.company.id = :companyId " +
+           "AND (:isActive IS NULL OR u.isActive = :isActive) " +
+           "AND (:roleId IS NULL OR u.role.id = :roleId) " +
+           "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')))",
+           countQuery = "SELECT count(u) FROM UserEntity u WHERE u.company.id = :companyId " +
            "AND (:isActive IS NULL OR u.isActive = :isActive) " +
            "AND (:roleId IS NULL OR u.role.id = :roleId) " +
            "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
@@ -41,7 +47,14 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
             Pageable pageable
     );
 
-    @Query("SELECT u FROM UserEntity u WHERE " +
+    @Query(value = "SELECT u FROM UserEntity u LEFT JOIN FETCH u.company LEFT JOIN FETCH u.role WHERE " +
+           "(:companyId IS NULL OR u.company.id = :companyId) " +
+           "AND (:isActive IS NULL OR u.isActive = :isActive) " +
+           "AND (:roleId IS NULL OR u.role.id = :roleId) " +
+           "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')))",
+           countQuery = "SELECT count(u) FROM UserEntity u WHERE " +
            "(:companyId IS NULL OR u.company.id = :companyId) " +
            "AND (:isActive IS NULL OR u.isActive = :isActive) " +
            "AND (:roleId IS NULL OR u.role.id = :roleId) " +

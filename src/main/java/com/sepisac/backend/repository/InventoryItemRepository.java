@@ -18,7 +18,10 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItemEnti
 
     List<InventoryItemEntity> findByCompanyId(UUID companyId);
 
-    @Query("SELECT i FROM InventoryItemEntity i WHERE i.company.id = :companyId " +
+    @Query(value = "SELECT i FROM InventoryItemEntity i LEFT JOIN FETCH i.company WHERE i.company.id = :companyId " +
+            "AND (:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
+            "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)",
+            countQuery = "SELECT count(i) FROM InventoryItemEntity i WHERE i.company.id = :companyId " +
             "AND (:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
             "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)")
     Page<InventoryItemEntity> findByCompanyIdWithFilters(
@@ -27,7 +30,10 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItemEnti
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT i FROM InventoryItemEntity i WHERE " +
+    @Query(value = "SELECT i FROM InventoryItemEntity i LEFT JOIN FETCH i.company WHERE " +
+            "(:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
+            "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)",
+            countQuery = "SELECT count(i) FROM InventoryItemEntity i WHERE " +
             "(:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
             "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)")
     Page<InventoryItemEntity> findAllWithFiltersGlobal(
