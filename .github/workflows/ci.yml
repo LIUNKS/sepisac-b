@@ -1,0 +1,79 @@
+name: CI Backend
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Compilar y probar (Java 17 + Maven)
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Generar archivo .env
+        run: |
+          cat <<EOF > .env
+          DB_URL=${{ secrets.DB_URL }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRATION_MS=${{ secrets.JWT_EXPIRATION_MS }}
+          COOKIE_NAME=${{ secrets.COOKIE_NAME }}
+          COOKIE_SECURE=${{ secrets.COOKIE_SECURE }}
+          COOKIE_SAME_SITE=${{ secrets.COOKIE_SAME_SITE }}
+          COOKIE_PATH=${{ secrets.COOKIE_PATH }}
+          CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
+          SWAGGER_ENABLED=${{ secrets.SWAGGER_ENABLED }}
+          MAIL_HOST=${{ secrets.MAIL_HOST }}
+          MAIL_PORT=${{ secrets.MAIL_PORT }}
+          MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+          MAIL_FROM=${{ secrets.MAIL_FROM }}
+          SERVER_PORT=${{ secrets.SERVER_PORT }}
+          JAVA_OPTS=${{ secrets.JAVA_OPTS }}
+          EOF
+
+      - name: Permisos del Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Compilar y ejecutar pruebas (JUnit/Mockito)
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRATION_MS: ${{ secrets.JWT_EXPIRATION_MS }}
+          COOKIE_NAME: ${{ secrets.COOKIE_NAME }}
+          COOKIE_SECURE: ${{ secrets.COOKIE_SECURE }}
+          COOKIE_SAME_SITE: ${{ secrets.COOKIE_SAME_SITE }}
+          COOKIE_PATH: ${{ secrets.COOKIE_PATH }}
+          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
+          SWAGGER_ENABLED: ${{ secrets.SWAGGER_ENABLED }}
+          MAIL_HOST: ${{ secrets.MAIL_HOST }}
+          MAIL_PORT: ${{ secrets.MAIL_PORT }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          JAVA_OPTS: ${{ secrets.JAVA_OPTS }}
+        run: ./mvnw -B test
+
+      - name: Construir imagen Docker (sin publicar)
+        run: docker build -t sepisac-backend:ci .
