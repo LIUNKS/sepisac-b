@@ -120,6 +120,19 @@ class MachineryControllerTest {
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.status", is(409)));
         }
+
+        @Test
+        @DisplayName("Should return 400 Bad Request when machinery name is shorter than 3 characters (RFC-002)")
+        void shouldReturn400WhenNameTooShort() throws Exception {
+            MachineryCreateDTO request = new MachineryCreateDTO(
+                    testCompanyId, "GEN-001", "AB", "DISPONIBLE", null, null
+            );
+
+            mockMvc.perform(post("/api/machinery")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
+        }
     }
 
     @Nested
