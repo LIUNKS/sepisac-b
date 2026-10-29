@@ -13,7 +13,7 @@ public class MachineryUpdateDTO {
     private String code;
 
     @NotBlank(message = "El nombre del equipo es obligatorio")
-    @Size(max = 150, message = "El nombre no puede exceder 150 caracteres")
+    @Size(min = 3, max = 150, message = "El nombre del equipo/herramienta debe tener entre 3 y 150 caracteres")
     private String name;
 
     @Pattern(regexp = "^(DISPONIBLE|EN_USO|EN_MANTENIMIENTO|DE_BAJA)$", message = "Estado de maquinaria inválido")
