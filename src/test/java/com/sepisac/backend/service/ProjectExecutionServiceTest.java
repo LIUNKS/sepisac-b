@@ -42,6 +42,9 @@ class ProjectExecutionServiceTest {
     private QuotationDetailRepository quotationDetailRepository;
 
     @Mock
+    private QuotationLaborRequirementRepository quotationLaborRequirementRepository;
+
+    @Mock
     private InventoryItemRepository inventoryItemRepository;
 
     @Mock
@@ -215,9 +218,74 @@ class ProjectExecutionServiceTest {
     class UpdateProjectStatusTests {
 
         @Test
-        @DisplayName("Debe actualizar el estado a EN_PROCESO correctamente")
+        @DisplayName("Debe actualizar el estado a EN_PROCESO correctamente cuando cubre el presupuesto")
         void shouldUpdateStatusToEnProceso() {
             when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(i -> i.getArgument(0));
+
+            ProjectStatusUpdateDTO dto = new ProjectStatusUpdateDTO("EN_PROCESO");
+            ProjectResponseDTO result = projectExecutionService.updateProjectStatus(projectId, dto);
+
+            assertThat(result.getStatus()).isEqualTo("EN_PROCESO");
+            verify(projectRepository).save(testProject);
+        }
+
+        @Test
+        @DisplayName("Debe bloquear inicio (PENDIENTE -> EN_PROCESO) si falta personal o maquinaria presupuestada")
+        void shouldBlockStartProjectWhenBudgetedEmployeesOrMachineryMissing() {
+            QuotationLaborRequirementEntity laborReq = new QuotationLaborRequirementEntity();
+            laborReq.setSpecialtyNeeded("Soldador 6G");
+            laborReq.setQuantityRequired(3);
+            laborReq.setEstimatedHours(40);
+
+            QuotationDetailEntity equipReq = new QuotationDetailEntity();
+            equipReq.setItemType("EQUIPO");
+            equipReq.setItemDescription("Grúa Pluma 5T");
+            equipReq.setQuantity(4);
+
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(quotationLaborRequirementRepository.findByQuotationId(quotationId)).thenReturn(List.of(laborReq));
+            when(quotationDetailRepository.findByQuotationId(quotationId)).thenReturn(List.of(equipReq));
+            when(projectAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of());
+            when(projectMachineryAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of());
+
+            ProjectStatusUpdateDTO dto = new ProjectStatusUpdateDTO("EN_PROCESO");
+            assertThatThrownBy(() -> projectExecutionService.updateProjectStatus(projectId, dto))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Personal asignado 0/3 (faltan 3)")
+                    .hasMessageContaining("Maquinaria asignada 0/1 (faltan 1)");
+
+            verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Debe permitir iniciar proyecto (PENDIENTE -> EN_PROCESO) cuando todos los recursos presupuestados están asignados")
+        void shouldAllowStartProjectWhenAllBudgetedResourcesAssigned() {
+            QuotationLaborRequirementEntity laborReq = new QuotationLaborRequirementEntity();
+            laborReq.setSpecialtyNeeded("Supervisor");
+            laborReq.setQuantityRequired(1);
+            laborReq.setEstimatedHours(40);
+
+            QuotationDetailEntity equipReq = new QuotationDetailEntity();
+            equipReq.setItemType("EQUIPO");
+            equipReq.setItemDescription("Generador Eléctrico 50kW");
+            equipReq.setQuantity(3);
+
+            ProjectAssignmentEntity empAssign = new ProjectAssignmentEntity();
+            empAssign.setId(UUID.randomUUID());
+            empAssign.setEmployee(testEmployee);
+            empAssign.setIsActive(true);
+
+            ProjectMachineryAssignmentEntity machAssign = new ProjectMachineryAssignmentEntity();
+            machAssign.setId(UUID.randomUUID());
+            machAssign.setMachineryEquipment(testMachinery);
+            machAssign.setStatus("EN_USO");
+
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(quotationLaborRequirementRepository.findByQuotationId(quotationId)).thenReturn(List.of(laborReq));
+            when(quotationDetailRepository.findByQuotationId(quotationId)).thenReturn(List.of(equipReq));
+            when(projectAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(empAssign));
+            when(projectMachineryAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(machAssign));
             when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(i -> i.getArgument(0));
 
             ProjectStatusUpdateDTO dto = new ProjectStatusUpdateDTO("EN_PROCESO");
@@ -244,10 +312,17 @@ class ProjectExecutionServiceTest {
     class AssignMachineryTests {
 
         @Test
-        @DisplayName("Debe asignar maquinaria disponible y cambiar su estado a EN_USO")
+        @DisplayName("Debe asignar maquinaria disponible y cambiar su estado a EN_USO dentro del cupo")
         void shouldAssignMachinerySuccessfully() {
+            QuotationDetailEntity equipDetail = new QuotationDetailEntity();
+            equipDetail.setItemType("EQUIPO");
+            equipDetail.setItemDescription("Generador Eléctrico 50kW");
+            equipDetail.setQuantity(5);
+
             when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
             when(machineryEquipmentRepository.findById(machineryId)).thenReturn(Optional.of(testMachinery));
+            when(quotationDetailRepository.findByQuotationId(quotationId)).thenReturn(List.of(equipDetail));
+            when(projectMachineryAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of());
             when(projectMachineryAssignmentRepository.save(any(ProjectMachineryAssignmentEntity.class))).thenAnswer(i -> {
                 ProjectMachineryAssignmentEntity a = i.getArgument(0);
                 a.setId(UUID.randomUUID());
@@ -263,6 +338,74 @@ class ProjectExecutionServiceTest {
 
             verify(machineryEquipmentRepository).save(testMachinery);
             verify(projectMachineryAssignmentRepository).save(any(ProjectMachineryAssignmentEntity.class));
+        }
+
+        @Test
+        @DisplayName("Debe bloquear asignación de maquinaria si la cotización presupuesta 0 equipos")
+        void shouldBlockAssignMachineryWhenQuotationBudgetsZeroEquipment() {
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(machineryEquipmentRepository.findById(machineryId)).thenReturn(Optional.of(testMachinery));
+            when(quotationDetailRepository.findByQuotationId(quotationId)).thenReturn(List.of());
+
+            ProjectMachineryAssignmentCreateDTO dto = new ProjectMachineryAssignmentCreateDTO(machineryId, LocalDate.now(), null);
+            assertThatThrownBy(() -> projectExecutionService.assignMachinery(projectId, dto))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("0 equipos");
+
+            verify(projectMachineryAssignmentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Debe bloquear asignación de maquinaria si ya se alcanzó el cupo presupuestado")
+        void shouldBlockAssignMachineryWhenBudgetLimitReached() {
+            QuotationDetailEntity equipDetail = new QuotationDetailEntity();
+            equipDetail.setItemType("EQUIPO");
+            equipDetail.setItemDescription("Grúa Pluma");
+            equipDetail.setQuantity(3);
+
+            ProjectMachineryAssignmentEntity existing = new ProjectMachineryAssignmentEntity();
+            existing.setId(UUID.randomUUID());
+            existing.setStatus("EN_USO");
+
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(machineryEquipmentRepository.findById(machineryId)).thenReturn(Optional.of(testMachinery));
+            when(quotationDetailRepository.findByQuotationId(quotationId)).thenReturn(List.of(equipDetail));
+            when(projectMachineryAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(existing));
+
+            ProjectMachineryAssignmentCreateDTO dto = new ProjectMachineryAssignmentCreateDTO(machineryId, LocalDate.now(), null);
+            assertThatThrownBy(() -> projectExecutionService.assignMachinery(projectId, dto))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Límite de maquinaria alcanzado");
+
+            verify(projectMachineryAssignmentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Debe permitir asignar maquinaria cuando la asignación previa ya fue DEVUELTO")
+        void shouldAllowAssignMachineryWhenPreviousAssignmentIsReturned() {
+            QuotationDetailEntity equipDetail = new QuotationDetailEntity();
+            equipDetail.setItemType("EQUIPO");
+            equipDetail.setItemDescription("Generador Eléctrico 50kW");
+            equipDetail.setQuantity(3);
+
+            ProjectMachineryAssignmentEntity returned = new ProjectMachineryAssignmentEntity();
+            returned.setId(UUID.randomUUID());
+            returned.setStatus("DEVUELTO");
+
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(machineryEquipmentRepository.findById(machineryId)).thenReturn(Optional.of(testMachinery));
+            when(quotationDetailRepository.findByQuotationId(quotationId)).thenReturn(List.of(equipDetail));
+            when(projectMachineryAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(returned));
+            when(projectMachineryAssignmentRepository.save(any(ProjectMachineryAssignmentEntity.class))).thenAnswer(i -> {
+                ProjectMachineryAssignmentEntity a = i.getArgument(0);
+                a.setId(UUID.randomUUID());
+                return a;
+            });
+
+            ProjectMachineryAssignmentCreateDTO dto = new ProjectMachineryAssignmentCreateDTO(machineryId, LocalDate.now(), null);
+            ProjectMachineryAssignmentResponseDTO result = projectExecutionService.assignMachinery(projectId, dto);
+
+            assertThat(result.getStatus()).isEqualTo("EN_USO");
         }
 
         @Test
@@ -354,10 +497,17 @@ class ProjectExecutionServiceTest {
     class AssignEmployeeTests {
 
         @Test
-        @DisplayName("Debe asignar empleado a proyecto correctamente")
+        @DisplayName("Debe asignar empleado a proyecto correctamente dentro del cupo presupuestado")
         void shouldAssignEmployeeSuccessfully() {
+            QuotationLaborRequirementEntity laborReq = new QuotationLaborRequirementEntity();
+            laborReq.setSpecialtyNeeded("Supervisor");
+            laborReq.setQuantityRequired(2);
+            laborReq.setEstimatedHours(40);
+
             when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
             when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(testEmployee));
+            when(projectAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of());
+            when(quotationLaborRequirementRepository.findByQuotationId(quotationId)).thenReturn(List.of(laborReq));
             when(projectAssignmentRepository.save(any(ProjectAssignmentEntity.class))).thenAnswer(i -> {
                 ProjectAssignmentEntity a = i.getArgument(0);
                 a.setId(UUID.randomUUID());
@@ -373,6 +523,156 @@ class ProjectExecutionServiceTest {
             assertThat(result.getIsActive()).isTrue();
 
             verify(projectAssignmentRepository).save(any(ProjectAssignmentEntity.class));
+        }
+
+        @Test
+        @DisplayName("Debe bloquear asignación si la cotización presupuesta 0 empleados")
+        void shouldBlockAssignEmployeeWhenQuotationBudgetsZeroEmployees() {
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(testEmployee));
+            when(projectAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of());
+            when(quotationLaborRequirementRepository.findByQuotationId(quotationId)).thenReturn(List.of());
+
+            ProjectAssignmentCreateDTO dto = new ProjectAssignmentCreateDTO(employeeId, "Supervisor", LocalDate.now());
+            assertThatThrownBy(() -> projectExecutionService.assignEmployee(projectId, dto))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("0 empleados");
+
+            verify(projectAssignmentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Debe bloquear asignación cuando ya se cubrió el máximo presupuestado de empleados")
+        void shouldBlockAssignEmployeeWhenBudgetLimitReached() {
+            QuotationLaborRequirementEntity laborReq = new QuotationLaborRequirementEntity();
+            laborReq.setSpecialtyNeeded("Soldador");
+            laborReq.setQuantityRequired(1);
+            laborReq.setEstimatedHours(40);
+
+            EmployeeEntity existingEmp = new EmployeeEntity();
+            existingEmp.setId(UUID.randomUUID());
+            existingEmp.setFullName("Otro Técnico");
+
+            ProjectAssignmentEntity active = new ProjectAssignmentEntity();
+            active.setId(UUID.randomUUID());
+            active.setEmployee(existingEmp);
+            active.setIsActive(true);
+
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(testEmployee));
+            when(projectAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(active));
+            when(quotationLaborRequirementRepository.findByQuotationId(quotationId)).thenReturn(List.of(laborReq));
+
+            ProjectAssignmentCreateDTO dto = new ProjectAssignmentCreateDTO(employeeId, "Supervisor", LocalDate.now());
+            assertThatThrownBy(() -> projectExecutionService.assignEmployee(projectId, dto))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("Límite de personal alcanzado");
+
+            verify(projectAssignmentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Debe bloquear asignación duplicada si el mismo empleado ya está activo en el proyecto")
+        void shouldBlockDuplicateActiveEmployeeAssignment() {
+            ProjectAssignmentEntity active = new ProjectAssignmentEntity();
+            active.setId(UUID.randomUUID());
+            active.setEmployee(testEmployee);
+            active.setIsActive(true);
+
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(testEmployee));
+            when(projectAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(active));
+
+            ProjectAssignmentCreateDTO dto = new ProjectAssignmentCreateDTO(employeeId, "Supervisor", LocalDate.now());
+            assertThatThrownBy(() -> projectExecutionService.assignEmployee(projectId, dto))
+                    .isInstanceOf(BusinessRuleException.class)
+                    .hasMessageContaining("ya se encuentra asignado activamente");
+
+            verify(projectAssignmentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Debe permitir asignar reemplazo si la asignación previa está inactiva (isActive = false)")
+        void shouldAllowAssignEmployeeWhenPreviousAssignmentIsInactive() {
+            QuotationLaborRequirementEntity laborReq = new QuotationLaborRequirementEntity();
+            laborReq.setSpecialtyNeeded("Supervisor");
+            laborReq.setQuantityRequired(1);
+            laborReq.setEstimatedHours(40);
+
+            ProjectAssignmentEntity inactive = new ProjectAssignmentEntity();
+            inactive.setId(UUID.randomUUID());
+            inactive.setEmployee(testEmployee);
+            inactive.setIsActive(false);
+
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(testEmployee));
+            when(projectAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(inactive));
+            when(quotationLaborRequirementRepository.findByQuotationId(quotationId)).thenReturn(List.of(laborReq));
+            when(projectAssignmentRepository.save(any(ProjectAssignmentEntity.class))).thenAnswer(i -> {
+                ProjectAssignmentEntity a = i.getArgument(0);
+                a.setId(UUID.randomUUID());
+                return a;
+            });
+
+            ProjectAssignmentCreateDTO dto = new ProjectAssignmentCreateDTO(employeeId, "Supervisor", LocalDate.now());
+            ProjectAssignmentResponseDTO result = projectExecutionService.assignEmployee(projectId, dto);
+
+            assertThat(result.getIsActive()).isTrue();
+            verify(projectAssignmentRepository).save(any(ProjectAssignmentEntity.class));
+        }
+
+        @Test
+        @DisplayName("Debe retornar el resumen de requerimientos presupuestados vs asignados")
+        void shouldReturnResourceRequirementsSummary() {
+            QuotationLaborRequirementEntity labor1 = new QuotationLaborRequirementEntity();
+            labor1.setSpecialtyNeeded("Soldador 6G");
+            labor1.setQuantityRequired(2);
+            labor1.setEstimatedHours(48);
+
+            QuotationLaborRequirementEntity labor2 = new QuotationLaborRequirementEntity();
+            labor2.setSpecialtyNeeded("Ayudante");
+            labor2.setQuantityRequired(1);
+            labor2.setEstimatedHours(48);
+
+            QuotationDetailEntity equip1 = new QuotationDetailEntity();
+            equip1.setItemType("EQUIPO");
+            equip1.setItemDescription("Soldadora Miller");
+            equip1.setQuantity(5);
+
+            QuotationDetailEntity mat1 = new QuotationDetailEntity();
+            mat1.setItemType("MATERIAL");
+            mat1.setItemDescription("Electrodo 7018");
+            mat1.setQuantity(10);
+
+            ProjectAssignmentEntity activeEmp = new ProjectAssignmentEntity();
+            activeEmp.setId(UUID.randomUUID());
+            activeEmp.setEmployee(testEmployee);
+            activeEmp.setIsActive(true);
+
+            ProjectMachineryAssignmentEntity activeMach = new ProjectMachineryAssignmentEntity();
+            activeMach.setId(UUID.randomUUID());
+            activeMach.setMachineryEquipment(testMachinery);
+            activeMach.setStatus("EN_USO");
+
+            when(projectRepository.findById(projectId)).thenReturn(Optional.of(testProject));
+            when(quotationLaborRequirementRepository.findByQuotationId(quotationId)).thenReturn(List.of(labor1, labor2));
+            when(quotationDetailRepository.findByQuotationId(quotationId)).thenReturn(List.of(equip1, mat1));
+            when(projectAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(activeEmp));
+            when(projectMachineryAssignmentRepository.findByProjectId(projectId)).thenReturn(List.of(activeMach));
+
+            ProjectResourceRequirementsResponseDTO summary =
+                    projectExecutionService.getResourceRequirements(projectId, testUserPrincipal);
+
+            assertThat(summary.getProjectId()).isEqualTo(projectId);
+            assertThat(summary.getQuotationId()).isEqualTo(quotationId);
+            assertThat(summary.getQuotationNumber()).isEqualTo("COT-2026-001");
+            assertThat(summary.getBudgetedEmployees()).isEqualTo(3);
+            assertThat(summary.getAssignedEmployees()).isEqualTo(1);
+            assertThat(summary.getBudgetedMachinery()).isEqualTo(1);
+            assertThat(summary.getAssignedMachinery()).isEqualTo(1);
+            assertThat(summary.isReadyToStart()).isFalse();
+            assertThat(summary.getLaborRequirements()).hasSize(2);
+            assertThat(summary.getEquipmentRequirements()).hasSize(1);
         }
     }
 

@@ -48,6 +48,7 @@ public class ProjectExecutionService {
     private final ProjectInventoryConsumptionRepository projectInventoryConsumptionRepository;
     private final UserRepository userRepository;
     private final PurchaseOrderService purchaseOrderService;
+    private final QuotationLaborRequirementRepository quotationLaborRequirementRepository;
 
     @Autowired
     public ProjectExecutionService(
@@ -62,7 +63,8 @@ public class ProjectExecutionService {
             ProjectMachineryAssignmentRepository projectMachineryAssignmentRepository,
             ProjectInventoryConsumptionRepository projectInventoryConsumptionRepository,
             @Autowired(required = false) UserRepository userRepository,
-            @Autowired(required = false) @org.springframework.context.annotation.Lazy PurchaseOrderService purchaseOrderService) {
+            @Autowired(required = false) @org.springframework.context.annotation.Lazy PurchaseOrderService purchaseOrderService,
+            @Autowired(required = false) QuotationLaborRequirementRepository quotationLaborRequirementRepository) {
         this.projectRepository = projectRepository;
         this.quotationRepository = quotationRepository;
         this.quotationDetailRepository = quotationDetailRepository;
@@ -75,6 +77,26 @@ public class ProjectExecutionService {
         this.projectInventoryConsumptionRepository = projectInventoryConsumptionRepository;
         this.userRepository = userRepository;
         this.purchaseOrderService = purchaseOrderService;
+        this.quotationLaborRequirementRepository = quotationLaborRequirementRepository;
+    }
+
+    public ProjectExecutionService(
+            ProjectRepository projectRepository,
+            QuotationRepository quotationRepository,
+            QuotationDetailRepository quotationDetailRepository,
+            InventoryItemRepository inventoryItemRepository,
+            InventoryMovementRepository inventoryMovementRepository,
+            MachineryEquipmentRepository machineryEquipmentRepository,
+            EmployeeRepository employeeRepository,
+            ProjectAssignmentRepository projectAssignmentRepository,
+            ProjectMachineryAssignmentRepository projectMachineryAssignmentRepository,
+            ProjectInventoryConsumptionRepository projectInventoryConsumptionRepository,
+            UserRepository userRepository,
+            PurchaseOrderService purchaseOrderService) {
+        this(projectRepository, quotationRepository, quotationDetailRepository, inventoryItemRepository,
+             inventoryMovementRepository, machineryEquipmentRepository, employeeRepository,
+             projectAssignmentRepository, projectMachineryAssignmentRepository,
+             projectInventoryConsumptionRepository, userRepository, purchaseOrderService, null);
     }
 
     public ProjectExecutionService(
@@ -92,7 +114,7 @@ public class ProjectExecutionService {
         this(projectRepository, quotationRepository, quotationDetailRepository, inventoryItemRepository,
              inventoryMovementRepository, machineryEquipmentRepository, employeeRepository,
              projectAssignmentRepository, projectMachineryAssignmentRepository,
-             projectInventoryConsumptionRepository, userRepository, null);
+             projectInventoryConsumptionRepository, userRepository, null, null);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -134,8 +156,15 @@ public class ProjectExecutionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado con ID: " + id));
 
         String targetStatus = updateDTO.getStatus() != null ? updateDTO.getStatus().trim().toUpperCase() : "";
+        if ("EN PROGRESO".equals(targetStatus)) {
+            targetStatus = "EN_PROCESO";
+        }
         if (!ALLOWED_STATUSES.contains(targetStatus)) {
             throw new IllegalArgumentException("Estado no permitido: " + updateDTO.getStatus() + ". Permitidos: " + ALLOWED_STATUSES);
+        }
+
+        if (!isInProgressStatus(project.getStatus()) && isInProgressStatus(targetStatus)) {
+            validateProjectReadyToStart(project);
         }
 
         project.setStatus(targetStatus);
@@ -153,6 +182,19 @@ public class ProjectExecutionService {
 
         if ("EN_MANTENIMIENTO".equalsIgnoreCase(machinery.getStatus()) || "EN_USO".equalsIgnoreCase(machinery.getStatus())) {
             throw new IllegalArgumentException("La maquinaria '" + machinery.getName() + "' no está disponible para asignación. Estado actual: " + machinery.getStatus());
+        }
+
+        if (project.getQuotation() != null) {
+            int budgetedMachinery = loadEquipmentRequirements(project).size();
+            int activeAssignedMachinery = countActiveMachineryAssignments(projectId);
+            if (budgetedMachinery == 0) {
+                throw new BusinessRuleException("La cotización vinculada no presupuesta maquinaria ni equipos (0 equipos). No se puede asignar maquinaria fuera del presupuesto.");
+            }
+            if (activeAssignedMachinery >= budgetedMachinery) {
+                throw new BusinessRuleException("Límite de maquinaria alcanzado según cotización: se presupuestaron "
+                        + budgetedMachinery + " equipo(s) y ya hay " + activeAssignedMachinery
+                        + " asignado(s). Libere un equipo si desea realizar un reemplazo.");
+            }
         }
 
         machinery.setStatus("EN_USO");
@@ -276,6 +318,31 @@ public class ProjectExecutionService {
 
         EmployeeEntity employee = employeeRepository.findById(dto.getEmployeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Empleado no encontrado con ID: " + dto.getEmployeeId()));
+
+        List<ProjectAssignmentEntity> currentAssignments = projectAssignmentRepository.findByProjectId(projectId);
+        List<ProjectAssignmentEntity> safeAssignments = currentAssignments != null ? currentAssignments : List.of();
+
+        boolean alreadyAssigned = safeAssignments.stream()
+                .filter(this::isActiveEmployeeAssignment)
+                .anyMatch(a -> a.getEmployee() != null && employee.getId().equals(a.getEmployee().getId()));
+        if (alreadyAssigned) {
+            throw new BusinessRuleException("El empleado '" + employee.getFullName() + "' ya se encuentra asignado activamente a este proyecto.");
+        }
+
+        if (quotationLaborRequirementRepository != null && project.getQuotation() != null) {
+            int budgetedEmployees = sumBudgetedEmployees(loadLaborRequirements(project));
+            int activeAssignedEmployees = (int) safeAssignments.stream()
+                    .filter(this::isActiveEmployeeAssignment)
+                    .count();
+            if (budgetedEmployees == 0) {
+                throw new BusinessRuleException("La cotización vinculada no presupuesta personal (0 empleados). No se puede asignar personal fuera del presupuesto.");
+            }
+            if (activeAssignedEmployees >= budgetedEmployees) {
+                throw new BusinessRuleException("Límite de personal alcanzado según cotización: se presupuestaron "
+                        + budgetedEmployees + " empleado(s) y ya hay " + activeAssignedEmployees
+                        + " asignado(s). Retire una asignación si desea realizar un reemplazo.");
+            }
+        }
 
         ProjectAssignmentEntity assignment = new ProjectAssignmentEntity();
         assignment.setProject(project);
@@ -401,6 +468,134 @@ public class ProjectExecutionService {
         }
 
         projectAssignmentRepository.delete(assignment);
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectResourceRequirementsResponseDTO getResourceRequirements(UUID projectId, UserPrincipal currentUser) {
+        ProjectEntity project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proyecto no encontrado con ID: " + projectId));
+        validateTenantAccess(project, currentUser);
+        return buildResourceRequirementsDTO(project);
+    }
+
+    /** Valida estrictamente que se haya cubierto todo el personal y maquinaria presupuestados antes de iniciar ejecución. */
+    public void validateProjectReadyToStart(ProjectEntity project) {
+        ProjectResourceRequirementsResponseDTO summary = buildResourceRequirementsDTO(project);
+        List<String> missing = new ArrayList<>();
+        if (summary.getAssignedEmployees() < summary.getBudgetedEmployees()) {
+            int faltanEmp = summary.getBudgetedEmployees() - summary.getAssignedEmployees();
+            missing.add("Personal asignado " + summary.getAssignedEmployees() + "/" + summary.getBudgetedEmployees()
+                    + " (faltan " + faltanEmp + ")");
+        }
+        if (summary.getAssignedMachinery() < summary.getBudgetedMachinery()) {
+            int faltanMach = summary.getBudgetedMachinery() - summary.getAssignedMachinery();
+            missing.add("Maquinaria asignada " + summary.getAssignedMachinery() + "/" + summary.getBudgetedMachinery()
+                    + " (faltan " + faltanMach + ")");
+        }
+        if (!missing.isEmpty()) {
+            throw new BusinessRuleException("No se puede iniciar el proyecto sin completar los recursos presupuestados en la cotización: "
+                    + String.join("; ", missing) + ".");
+        }
+    }
+
+    private ProjectResourceRequirementsResponseDTO buildResourceRequirementsDTO(ProjectEntity project) {
+        List<QuotationLaborRequirementEntity> laborReqs = loadLaborRequirements(project);
+        List<QuotationDetailEntity> equipmentReqs = loadEquipmentRequirements(project);
+
+        int budgetedEmployees = sumBudgetedEmployees(laborReqs);
+        int budgetedMachinery = equipmentReqs.size();
+        int assignedEmployees = countActiveEmployeeAssignments(project.getId());
+        int assignedMachinery = countActiveMachineryAssignments(project.getId());
+        boolean readyToStart = assignedEmployees >= budgetedEmployees && assignedMachinery >= budgetedMachinery;
+
+        List<ProjectResourceRequirementsResponseDTO.LaborRequirementSummary> laborSummaries = laborReqs.stream()
+                .map(l -> new ProjectResourceRequirementsResponseDTO.LaborRequirementSummary(
+                        l.getSpecialtyNeeded(), l.getQuantityRequired(), l.getEstimatedHours()))
+                .collect(Collectors.toList());
+
+        List<ProjectResourceRequirementsResponseDTO.EquipmentRequirementSummary> equipmentSummaries = equipmentReqs.stream()
+                .map(d -> new ProjectResourceRequirementsResponseDTO.EquipmentRequirementSummary(
+                        d.getItemDescription(), d.getQuantity()))
+                .collect(Collectors.toList());
+
+        QuotationEntity quotation = project.getQuotation();
+        return new ProjectResourceRequirementsResponseDTO(
+                project.getId(),
+                quotation != null ? quotation.getId() : null,
+                quotation != null ? quotation.getQuotationNumber() : null,
+                budgetedEmployees,
+                assignedEmployees,
+                budgetedMachinery,
+                assignedMachinery,
+                readyToStart,
+                laborSummaries,
+                equipmentSummaries
+        );
+    }
+
+    private List<QuotationLaborRequirementEntity> loadLaborRequirements(ProjectEntity project) {
+        if (project.getQuotation() == null || quotationLaborRequirementRepository == null) {
+            return List.of();
+        }
+        List<QuotationLaborRequirementEntity> reqs = quotationLaborRequirementRepository.findByQuotationId(project.getQuotation().getId());
+        return reqs != null ? reqs : List.of();
+    }
+
+    private List<QuotationDetailEntity> loadEquipmentRequirements(ProjectEntity project) {
+        if (project.getQuotation() == null || quotationDetailRepository == null) {
+            return List.of();
+        }
+        List<QuotationDetailEntity> details = quotationDetailRepository.findByQuotationId(project.getQuotation().getId());
+        if (details == null) {
+            return List.of();
+        }
+        return details.stream()
+                .filter(d -> d.getItemType() != null && "EQUIPO".equalsIgnoreCase(d.getItemType().trim()))
+                .collect(Collectors.toList());
+    }
+
+    private int sumBudgetedEmployees(List<QuotationLaborRequirementEntity> laborReqs) {
+        return laborReqs.stream()
+                .mapToInt(l -> l.getQuantityRequired() != null ? Math.max(0, l.getQuantityRequired()) : 0)
+                .sum();
+    }
+
+    private int countActiveEmployeeAssignments(UUID projectId) {
+        if (projectId == null) {
+            return 0;
+        }
+        List<ProjectAssignmentEntity> assignments = projectAssignmentRepository.findByProjectId(projectId);
+        if (assignments == null) {
+            return 0;
+        }
+        return (int) assignments.stream().filter(this::isActiveEmployeeAssignment).count();
+    }
+
+    private int countActiveMachineryAssignments(UUID projectId) {
+        if (projectId == null) {
+            return 0;
+        }
+        List<ProjectMachineryAssignmentEntity> assignments = projectMachineryAssignmentRepository.findByProjectId(projectId);
+        if (assignments == null) {
+            return 0;
+        }
+        return (int) assignments.stream().filter(this::isActiveMachineryAssignment).count();
+    }
+
+    private boolean isActiveEmployeeAssignment(ProjectAssignmentEntity assignment) {
+        return assignment.getIsActive() == null || Boolean.TRUE.equals(assignment.getIsActive());
+    }
+
+    private boolean isActiveMachineryAssignment(ProjectMachineryAssignmentEntity assignment) {
+        return assignment.getStatus() == null || !"DEVUELTO".equalsIgnoreCase(assignment.getStatus().trim());
+    }
+
+    private boolean isInProgressStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        String norm = status.trim().toUpperCase();
+        return "EN_PROCESO".equals(norm) || "EN PROGRESO".equals(norm);
     }
 
     private void validateTenantAccess(ProjectEntity project, UserPrincipal currentUser) {
