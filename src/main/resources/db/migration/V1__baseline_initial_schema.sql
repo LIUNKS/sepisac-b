@@ -1,0 +1,12 @@
+-- =========================================================================
+-- V1: Baseline del esquema inicial de SEPI S.A.C. en Supabase (PostgreSQL)
+-- =========================================================================
+-- En bases de datos ya existentes, Flyway aplica baseline-on-migrate=true
+-- con baseline-version=1, registrando este punto de partida en
+-- public.flyway_schema_history sin alterar tablas ni datos existentes.
+--
+-- Referencia del esquema base: sepisac-b/docs/00-database-schema-spec.md
+-- Todas las nuevas migraciones incrementales deben nombrarse:
+--   V2__descripcion_del_cambio.sql, V3__..., etc.
+-- =========================================================================
+SELECT 1;
