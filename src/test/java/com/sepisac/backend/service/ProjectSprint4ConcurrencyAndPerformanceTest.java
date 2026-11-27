@@ -41,6 +41,9 @@ class ProjectSprint4ConcurrencyAndPerformanceTest {
     private QuotationDetailRepository quotationDetailRepository;
 
     @Mock
+    private QuotationLaborRequirementRepository quotationLaborRequirementRepository;
+
+    @Mock
     private InventoryItemRepository inventoryItemRepository;
 
     @Mock

@@ -87,11 +87,12 @@ public class ProjectExecutionController {
     @PostMapping("/{id}/machinery-assignments")
     @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
     @Operation(summary = "Asignar maquinaria o equipo a proyecto", 
-               description = "Asigna una maquinaria al proyecto y cambia su estado operativo global a EN_USO. Valida que no esté en mantenimiento ni en uso.")
+               description = "Asigna una maquinaria al proyecto y cambia su estado operativo global a EN_USO. Valida disponibilidad y el límite presupuestado en la cotización.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Maquinaria asignada exitosamente", content = @Content(schema = @Schema(implementation = ProjectMachineryAssignmentResponseDTO.class))),
             @ApiResponse(responseCode = "400", description = "La maquinaria no está disponible (en mantenimiento o en uso) o datos inválidos", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Proyecto o maquinaria no encontrados", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+            @ApiResponse(responseCode = "404", description = "Proyecto o maquinaria no encontrados", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "409", description = "Regla de negocio: límite presupuestado de maquinaria alcanzado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
     })
     public ResponseEntity<ProjectMachineryAssignmentResponseDTO> assignMachinery(
             @Parameter(description = "ID del proyecto") @PathVariable UUID id,
@@ -117,6 +118,21 @@ public class ProjectExecutionController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/{id}/resource-requirements")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
+    @Operation(summary = "Consultar cupos presupuestados vs asignados del proyecto",
+               description = "Retorna el detalle de personal y maquinaria presupuestados en la cotización origen frente a las asignaciones activas del proyecto.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Resumen presupuestal de recursos obtenido exitosamente", content = @Content(schema = @Schema(implementation = ProjectResourceRequirementsResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "Proyecto no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+    })
+    public ResponseEntity<ProjectResourceRequirementsResponseDTO> getResourceRequirements(
+            @Parameter(description = "ID del proyecto") @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        ProjectResourceRequirementsResponseDTO response = projectExecutionService.getResourceRequirements(id, currentUser);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{id}/assignments")
     @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
     @Operation(summary = "Listar empleados/personal asignados al proyecto", 
@@ -135,11 +151,12 @@ public class ProjectExecutionController {
     @PostMapping("/{id}/assignments")
     @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN_EMPRESA', 'GERENCIA', 'ALMACEN', 'TECNICO')")
     @Operation(summary = "Asignar personal/técnico a proyecto", 
-               description = "Asigna un empleado o técnico al proyecto especificando su rol asignado.")
+               description = "Asigna un empleado o técnico al proyecto especificando su rol asignado y validando el cupo presupuestado en la cotización.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Empleado asignado exitosamente", content = @Content(schema = @Schema(implementation = ProjectAssignmentResponseDTO.class))),
             @ApiResponse(responseCode = "400", description = "Datos de asignación inválidos", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Proyecto o empleado no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
+            @ApiResponse(responseCode = "404", description = "Proyecto o empleado no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class))),
+            @ApiResponse(responseCode = "409", description = "Regla de negocio: límite presupuestado de personal alcanzado o empleado duplicado", content = @Content(schema = @Schema(implementation = ErrorResponseDTO.class)))
     })
     public ResponseEntity<ProjectAssignmentResponseDTO> assignEmployee(
             @Parameter(description = "ID del proyecto") @PathVariable UUID id,

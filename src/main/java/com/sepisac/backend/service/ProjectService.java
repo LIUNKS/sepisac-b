@@ -29,12 +29,22 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final CompanyRepository companyRepository;
     private final QuotationRepository quotationRepository;
+    private final ProjectExecutionService projectExecutionService;
 
     @Autowired
-    public ProjectService(ProjectRepository projectRepository, CompanyRepository companyRepository, QuotationRepository quotationRepository) {
+    public ProjectService(
+            ProjectRepository projectRepository,
+            CompanyRepository companyRepository,
+            QuotationRepository quotationRepository,
+            @Autowired(required = false) ProjectExecutionService projectExecutionService) {
         this.projectRepository = projectRepository;
         this.companyRepository = companyRepository;
         this.quotationRepository = quotationRepository;
+        this.projectExecutionService = projectExecutionService;
+    }
+
+    public ProjectService(ProjectRepository projectRepository, CompanyRepository companyRepository, QuotationRepository quotationRepository) {
+        this(projectRepository, companyRepository, quotationRepository, null);
     }
 
     @Transactional(readOnly = true)
@@ -86,16 +96,25 @@ public class ProjectService {
         QuotationEntity quotation = quotationRepository.findById(createDTO.getQuotationId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cotización no encontrada con ID: " + createDTO.getQuotationId()));
 
+        String targetStatus = normalizeTargetStatus(createDTO.getStatus());
+        if (targetStatus == null) {
+            targetStatus = "PENDIENTE";
+        }
+
         ProjectEntity project = new ProjectEntity();
         project.setCompany(company);
         project.setQuotation(quotation);
         project.setCode(createDTO.getCode());
         project.setTitle(createDTO.getTitle());
         project.setDescription(createDTO.getDescription());
-        project.setStatus(createDTO.getStatus() != null ? createDTO.getStatus() : "EN PROGRESO");
+        project.setStatus(targetStatus);
         project.setStartDate(createDTO.getStartDate());
         project.setEndDate(createDTO.getEndDate());
         project.setClientName(createDTO.getClientName());
+
+        if (isInProgressStatus(targetStatus) && projectExecutionService != null) {
+            projectExecutionService.validateProjectReadyToStart(project);
+        }
 
         ProjectEntity savedProject = projectRepository.save(project);
         return mapToDTO(savedProject);
@@ -108,13 +127,35 @@ public class ProjectService {
 
         if (updateDTO.getTitle() != null) project.setTitle(updateDTO.getTitle());
         if (updateDTO.getDescription() != null) project.setDescription(updateDTO.getDescription());
-        if (updateDTO.getStatus() != null) project.setStatus(updateDTO.getStatus());
+        if (updateDTO.getStatus() != null && !updateDTO.getStatus().trim().isEmpty()) {
+            String targetStatus = normalizeTargetStatus(updateDTO.getStatus());
+            if (!isInProgressStatus(project.getStatus()) && isInProgressStatus(targetStatus) && projectExecutionService != null) {
+                projectExecutionService.validateProjectReadyToStart(project);
+            }
+            project.setStatus(targetStatus);
+        }
         if (updateDTO.getStartDate() != null) project.setStartDate(updateDTO.getStartDate());
         if (updateDTO.getEndDate() != null) project.setEndDate(updateDTO.getEndDate());
         if (updateDTO.getClientName() != null) project.setClientName(updateDTO.getClientName());
 
         ProjectEntity updatedProject = projectRepository.save(project);
         return mapToDTO(updatedProject);
+    }
+
+    private String normalizeTargetStatus(String status) {
+        if (status == null || status.trim().isEmpty()) {
+            return null;
+        }
+        String norm = status.trim().toUpperCase();
+        return "EN PROGRESO".equals(norm) ? "EN_PROCESO" : norm;
+    }
+
+    private boolean isInProgressStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        String norm = status.trim().toUpperCase();
+        return "EN_PROCESO".equals(norm) || "EN PROGRESO".equals(norm);
     }
 
     @Transactional
