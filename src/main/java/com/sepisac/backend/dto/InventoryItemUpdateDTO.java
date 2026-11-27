@@ -18,6 +18,9 @@ public class InventoryItemUpdateDTO {
 
     private String description;
 
+    @Size(max = 50, message = "La categoría no puede exceder 50 caracteres")
+    private String category;
+
     @PositiveOrZero(message = "El costo de compra no puede ser negativo")
     private BigDecimal purchaseCost;
 
@@ -62,6 +65,14 @@ public class InventoryItemUpdateDTO {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public BigDecimal getPurchaseCost() {

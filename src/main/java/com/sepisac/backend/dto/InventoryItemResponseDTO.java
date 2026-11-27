@@ -12,6 +12,7 @@ public class InventoryItemResponseDTO {
     private String sku;
     private String name;
     private String description;
+    private String category;
     private Integer stockQuantity;
     private BigDecimal purchaseCost;
     private BigDecimal salePrice;
@@ -26,12 +27,21 @@ public class InventoryItemResponseDTO {
                                     String description, Integer stockQuantity, BigDecimal purchaseCost,
                                     BigDecimal salePrice, Integer minStockAlert, Boolean isLowStock,
                                     OffsetDateTime createdAt) {
+        this(id, companyId, companyName, sku, name, description, "CONSUMIBLES_SOLDADURA",
+                stockQuantity, purchaseCost, salePrice, minStockAlert, isLowStock, createdAt);
+    }
+
+    public InventoryItemResponseDTO(UUID id, UUID companyId, String companyName, String sku, String name,
+                                    String description, String category, Integer stockQuantity, BigDecimal purchaseCost,
+                                    BigDecimal salePrice, Integer minStockAlert, Boolean isLowStock,
+                                    OffsetDateTime createdAt) {
         this.id = id;
         this.companyId = companyId;
         this.companyName = companyName;
         this.sku = sku;
         this.name = name;
         this.description = description;
+        this.category = category;
         this.stockQuantity = stockQuantity;
         this.purchaseCost = purchaseCost;
         this.salePrice = salePrice;
@@ -86,6 +96,14 @@ public class InventoryItemResponseDTO {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public Integer getStockQuantity() {

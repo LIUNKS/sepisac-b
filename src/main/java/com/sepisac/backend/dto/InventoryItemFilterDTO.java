@@ -6,6 +6,7 @@ public class InventoryItemFilterDTO {
 
     private UUID companyId;
     private String search;
+    private String category;
     private Boolean lowStock;
     private int page = 0;
     private int size = 10;
@@ -28,6 +29,14 @@ public class InventoryItemFilterDTO {
 
     public void setSearch(String search) {
         this.search = search;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public Boolean getLowStock() {

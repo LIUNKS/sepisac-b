@@ -20,24 +20,30 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItemEnti
 
     @Query(value = "SELECT i FROM InventoryItemEntity i LEFT JOIN FETCH i.company WHERE i.company.id = :companyId " +
             "AND (:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
+            "AND (:category IS NULL OR i.category = :category) " +
             "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)",
             countQuery = "SELECT count(i) FROM InventoryItemEntity i WHERE i.company.id = :companyId " +
             "AND (:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
+            "AND (:category IS NULL OR i.category = :category) " +
             "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)")
     Page<InventoryItemEntity> findByCompanyIdWithFilters(
             @Param("companyId") UUID companyId,
             @Param("lowStock") Boolean lowStock,
+            @Param("category") String category,
             @Param("search") String search,
             Pageable pageable);
 
     @Query(value = "SELECT i FROM InventoryItemEntity i LEFT JOIN FETCH i.company WHERE " +
             "(:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
+            "AND (:category IS NULL OR i.category = :category) " +
             "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)",
             countQuery = "SELECT count(i) FROM InventoryItemEntity i WHERE " +
             "(:lowStock IS NULL OR (:lowStock = true AND i.stockQuantity <= i.minStockAlert) OR (:lowStock = false AND i.stockQuantity > i.minStockAlert)) " +
+            "AND (:category IS NULL OR i.category = :category) " +
             "AND (:search IS NULL OR LOWER(i.sku) LIKE :search OR LOWER(i.name) LIKE :search)")
     Page<InventoryItemEntity> findAllWithFiltersGlobal(
             @Param("lowStock") Boolean lowStock,
+            @Param("category") String category,
             @Param("search") String search,
             Pageable pageable);
 

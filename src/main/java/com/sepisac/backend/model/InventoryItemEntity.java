@@ -44,6 +44,9 @@ public class InventoryItemEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "category", nullable = false, length = 50)
+    private String category;
+
     @Column(name = "stock_quantity", nullable = false)
     private Integer stockQuantity;
 
@@ -99,6 +102,9 @@ public class InventoryItemEntity {
         if (this.minStockAlert == null) {
             this.minStockAlert = 5;
         }
+        if (this.category == null || this.category.isBlank()) {
+            this.category = "CONSUMIBLES_SOLDADURA";
+        }
         if (this.isDeleted == null) {
             this.isDeleted = false;
         }
@@ -150,6 +156,14 @@ public class InventoryItemEntity {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public Integer getStockQuantity() {

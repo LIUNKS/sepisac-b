@@ -22,6 +22,9 @@ public class InventoryItemCreateDTO {
 
     private String description;
 
+    @Size(max = 50, message = "La categoría no puede exceder 50 caracteres")
+    private String category;
+
     @NotNull(message = "La cantidad de stock inicial es obligatoria")
     @PositiveOrZero(message = "El stock inicial no puede ser negativo")
     private Integer stockQuantity;
@@ -80,6 +83,14 @@ public class InventoryItemCreateDTO {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public Integer getStockQuantity() {

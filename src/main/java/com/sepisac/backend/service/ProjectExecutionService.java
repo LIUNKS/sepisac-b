@@ -24,6 +24,17 @@ public class ProjectExecutionService {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ProjectExecutionService.class);
     private static final Set<String> ALLOWED_STATUSES = Set.of("PENDIENTE", "EN_PROCESO", "COMPLETADO", "CANCELADO");
+    private static final java.util.Map<String, String> SERVICE_TYPE_LABELS = java.util.Map.of(
+            "MANTENIMIENTO_PREVENTIVO", "Mantenimiento Preventivo",
+            "MANTENIMIENTO_CORRECTIVO", "Mantenimiento Correctivo",
+            "MANTENIMIENTO_CALDERAS", "Mantenimiento de Calderas",
+            "FABRICACION_MONTAJE", "Fabricación y Montaje",
+            "SOLDADURA_ESTRUCTURAL", "Soldadura Estructural",
+            "TORNEADO_EJES", "Torneado de Ejes",
+            "MECANIZADO_GENERAL", "Mecanizado General",
+            "OVERHAUL_REDUCTORES", "Overhaul de Reductores",
+            "MANTENIMIENTO", "Mantenimiento General"
+    );
 
     private final ProjectRepository projectRepository;
     private final QuotationRepository quotationRepository;
@@ -105,7 +116,7 @@ public class ProjectExecutionService {
         project.setCompany(quotation.getCompany());
         project.setQuotation(quotation);
         project.setCode(code);
-        project.setTitle(quotation.getServiceType() + " - " + quotation.getClientName());
+        project.setTitle(formatServiceTypeLabel(quotation.getServiceType()) + " - " + quotation.getClientName());
         project.setDescription("Proyecto generado automáticamente a partir de la cotización " + quotation.getQuotationNumber() + 
                 (quotationDetails != null ? " con " + quotationDetails.size() + " ítems requeridos." : "."));
         project.setStatus("PENDIENTE");
@@ -285,6 +296,14 @@ public class ProjectExecutionService {
                 saved.getAssignedDate(),
                 saved.getIsActive()
         );
+    }
+
+    private String formatServiceTypeLabel(String serviceType) {
+        if (serviceType == null || serviceType.isBlank()) {
+            return "Servicio General";
+        }
+        String trimmed = serviceType.trim();
+        return SERVICE_TYPE_LABELS.getOrDefault(trimmed, trimmed);
     }
 
     private ProjectResponseDTO mapToProjectDTO(ProjectEntity project) {

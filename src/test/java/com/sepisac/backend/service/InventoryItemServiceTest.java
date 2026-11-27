@@ -111,10 +111,53 @@ class InventoryItemServiceTest {
             assertThat(response).isNotNull();
             assertThat(response.getId()).isEqualTo(itemId);
             assertThat(response.getSku()).isEqualTo("TUB-AC-2PULG");
+            assertThat(response.getCategory()).isEqualTo("CONSUMIBLES_SOLDADURA");
             assertThat(response.getIsLowStock()).isFalse();
 
             verify(inventoryItemRepository).save(any(InventoryItemEntity.class));
             verify(auditLogService).log(eq(companyId), eq(adminEmpresaId), eq("CREATE"), eq("INVENTORY"), any());
+        }
+
+        @Test
+        @DisplayName("Should persist explicit valid category when provided")
+        void shouldCreateItemWithExplicitCategory() {
+            InventoryItemCreateDTO request = new InventoryItemCreateDTO(
+                    companyId, "ROD-SKF-6205", "Rodamiento SKF 6205", "Desc",
+                    12, new BigDecimal("45.00"), new BigDecimal("75.00"), 5
+            );
+            request.setCategory("repuestos_mecanicos");
+
+            when(inventoryItemRepository.existsByCompanyIdAndSku(companyId, "ROD-SKF-6205")).thenReturn(false);
+            when(companyRepository.findById(companyId)).thenReturn(Optional.of(testCompany));
+            when(inventoryItemRepository.save(any(InventoryItemEntity.class))).thenAnswer(invocation -> {
+                InventoryItemEntity item = invocation.getArgument(0);
+                item.setId(itemId);
+                item.setCreatedAt(OffsetDateTime.now());
+                return item;
+            });
+
+            InventoryItemResponseDTO response = inventoryItemService.createItem(request, adminEmpresaPrincipal);
+
+            assertThat(response.getCategory()).isEqualTo("REPUESTOS_MECANICOS");
+        }
+
+        @Test
+        @DisplayName("Should throw IllegalArgumentException when category is invalid")
+        void shouldThrowWhenCategoryIsInvalid() {
+            InventoryItemCreateDTO request = new InventoryItemCreateDTO(
+                    companyId, "ROD-SKF-6205", "Rodamiento SKF 6205", "Desc",
+                    12, new BigDecimal("45.00"), new BigDecimal("75.00"), 5
+            );
+            request.setCategory("INVALID_CATEGORY");
+
+            when(inventoryItemRepository.existsByCompanyIdAndSku(companyId, "ROD-SKF-6205")).thenReturn(false);
+            when(companyRepository.findById(companyId)).thenReturn(Optional.of(testCompany));
+
+            assertThatThrownBy(() -> inventoryItemService.createItem(request, adminEmpresaPrincipal))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Categoría de inventario no válida");
+
+            verify(inventoryItemRepository, never()).save(any());
         }
 
         @Test
@@ -140,12 +183,13 @@ class InventoryItemServiceTest {
     class UpdateAndDeleteTests {
 
         @Test
-        @DisplayName("Should update inventory item details successfully")
+        @DisplayName("Should update inventory item details and valid category successfully")
         void shouldUpdateItem() {
             InventoryItemUpdateDTO updateDTO = new InventoryItemUpdateDTO(
                     "TUB-AC-2PULG", "Tubo de Acero Modificado", "Nueva desc",
                     new BigDecimal("130.00"), new BigDecimal("195.00"), 15
             );
+            updateDTO.setCategory("HERRAMIENTAS_EQUIPOS");
 
             when(inventoryItemRepository.findById(itemId)).thenReturn(Optional.of(testItem));
             when(inventoryItemRepository.save(any(InventoryItemEntity.class))).thenReturn(testItem);
@@ -153,6 +197,7 @@ class InventoryItemServiceTest {
             InventoryItemResponseDTO response = inventoryItemService.updateItem(itemId, updateDTO, adminEmpresaPrincipal);
 
             assertThat(response).isNotNull();
+            assertThat(response.getCategory()).isEqualTo("HERRAMIENTAS_EQUIPOS");
             verify(inventoryItemRepository).save(testItem);
             verify(auditLogService).log(eq(companyId), eq(adminEmpresaId), eq("UPDATE"), eq("INVENTORY"), any());
         }

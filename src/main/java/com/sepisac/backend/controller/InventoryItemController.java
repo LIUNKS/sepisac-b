@@ -76,11 +76,12 @@ public class InventoryItemController {
             @Parameter(description = "Número de página (0..N)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Cantidad de elementos por página") @RequestParam(defaultValue = "10") int size,
             @Parameter(description = "Búsqueda por SKU o Nombre") @RequestParam(required = false) String search,
+            @Parameter(description = "Filtrar por categoría de inventario") @RequestParam(required = false) String category,
             @Parameter(description = "Filtrar por alerta de bajo stock (true/false)") @RequestParam(required = false) Boolean lowStock,
             @Parameter(description = "Criterio de ordenamiento (ej. createdAt,desc)") @RequestParam(defaultValue = "createdAt,desc") String sort,
             @AuthenticationPrincipal UserPrincipal currentUser) {
         PageResponseDTO<InventoryItemResponseDTO> items = inventoryItemService.getItemsPaged(
-                companyId, page, size, search, lowStock, sort, currentUser
+                companyId, page, size, search, category, lowStock, sort, currentUser
         );
         return ResponseEntity.ok(items);
     }

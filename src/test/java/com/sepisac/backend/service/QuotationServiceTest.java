@@ -444,6 +444,43 @@ class QuotationServiceTest {
 
             verify(quotationRepository).save(testQuotation);
         }
+
+        @Test
+        @DisplayName("Should normalize legacy 'otro' itemType to 'OTROS' when adding detail")
+        void shouldNormalizeLegacyOtroItemType() {
+            testQuotation.setStatus("BORRADOR");
+            QuotationDetailCreateDTO detailDTO = new QuotationDetailCreateDTO(
+                    "Gastos varios", "otro", 1, new BigDecimal("50.00")
+            );
+
+            when(quotationRepository.findById(quotationId)).thenReturn(Optional.of(testQuotation));
+            when(detailRepository.save(any(QuotationDetailEntity.class))).thenAnswer(invocation -> {
+                QuotationDetailEntity d = invocation.getArgument(0);
+                d.setId(UUID.randomUUID());
+                return d;
+            });
+            when(detailRepository.findByQuotationId(quotationId)).thenReturn(Collections.emptyList());
+            when(laborRepository.findByQuotationId(quotationId)).thenReturn(Collections.emptyList());
+
+            QuotationDetailResponseDTO response = quotationService.addDetail(quotationId, detailDTO, adminEmpresaPrincipal);
+
+            assertThat(response.getItemType()).isEqualTo("OTROS");
+        }
+
+        @Test
+        @DisplayName("Should reject unsupported itemType when adding detail")
+        void shouldRejectUnsupportedItemType() {
+            testQuotation.setStatus("BORRADOR");
+            QuotationDetailCreateDTO detailDTO = new QuotationDetailCreateDTO(
+                    "Ítem inválido", "DESCONOCIDO", 1, new BigDecimal("50.00")
+            );
+
+            when(quotationRepository.findById(quotationId)).thenReturn(Optional.of(testQuotation));
+
+            assertThatThrownBy(() -> quotationService.addDetail(quotationId, detailDTO, adminEmpresaPrincipal))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Tipo de ítem no válido");
+        }
     }
 }
 
