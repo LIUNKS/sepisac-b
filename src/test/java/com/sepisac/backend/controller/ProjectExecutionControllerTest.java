@@ -234,4 +234,47 @@ class ProjectExecutionControllerTest {
 
         verify(projectExecutionService).removeEmployeeAssignment(eq(projectId), eq(assignmentId), any());
     }
+
+    @Test
+    @DisplayName("GET /api/v1/projects/{id}/resource-requirements - Éxito 200")
+    void shouldGetResourceRequirementsSuccessfully() throws Exception {
+        ProjectResourceRequirementsResponseDTO dto = new ProjectResourceRequirementsResponseDTO(
+                projectId,
+                UUID.randomUUID(),
+                "COT-2026-001",
+                3,
+                3,
+                1,
+                1,
+                true,
+                List.of(new ProjectResourceRequirementsResponseDTO.LaborRequirementSummary("Soldador 6G", 3, 40)),
+                List.of(new ProjectResourceRequirementsResponseDTO.EquipmentRequirementSummary("Grúa Pluma", 2))
+        );
+
+        when(projectExecutionService.getResourceRequirements(eq(projectId), any()))
+                .thenReturn(dto);
+
+        mockMvc.perform(get("/api/v1/projects/{id}/resource-requirements", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.budgetedEmployees", is(3)))
+                .andExpect(jsonPath("$.assignedEmployees", is(3)))
+                .andExpect(jsonPath("$.budgetedMachinery", is(1)))
+                .andExpect(jsonPath("$.assignedMachinery", is(1)))
+                .andExpect(jsonPath("$.readyToStart", is(true)));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/projects/{id}/assignments - Falla 409 cuando supera cupo presupuestado")
+    void shouldReturnConflictWhenEmployeeBudgetExceeded() throws Exception {
+        ProjectAssignmentCreateDTO dto = new ProjectAssignmentCreateDTO(employeeId, "Soldador", LocalDate.now());
+
+        when(projectExecutionService.assignEmployee(eq(projectId), any(ProjectAssignmentCreateDTO.class)))
+                .thenThrow(new BusinessRuleException("Límite de personal alcanzado según cotización: se presupuestaron 3 empleado(s)"));
+
+        mockMvc.perform(post("/api/v1/projects/{id}/assignments", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Límite de personal alcanzado según cotización: se presupuestaron 3 empleado(s)"));
+    }
 }
