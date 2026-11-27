@@ -37,6 +37,10 @@ public class QuotationService {
             "id", "quotationNumber", "clientName", "serviceType", "currency", "totalAmount", "status", "createdAt", "updatedAt"
     );
 
+    private static final Set<String> ALLOWED_ITEM_TYPES = Set.of(
+            "MATERIAL", "REPUESTO", "EQUIPO", "HERRAMIENTA", "TRANSPORTE", "VIATICOS", "OTROS"
+    );
+
     private final QuotationRepository quotationRepository;
     private final QuotationDetailRepository detailRepository;
     private final QuotationLaborRequirementRepository laborRepository;
@@ -97,7 +101,7 @@ public class QuotationService {
                 QuotationDetailEntity detail = new QuotationDetailEntity();
                 detail.setQuotation(savedQuotation);
                 detail.setItemDescription(detailDto.getItemDescription());
-                detail.setItemType(detailDto.getItemType());
+                detail.setItemType(normalizeItemType(detailDto.getItemType()));
                 detail.setQuantity(detailDto.getQuantity());
                 detail.setUnitPrice(detailDto.getUnitPrice());
                 detail.setSubtotal(subtotal);
@@ -335,7 +339,7 @@ public class QuotationService {
         QuotationDetailEntity detail = new QuotationDetailEntity();
         detail.setQuotation(quotation);
         detail.setItemDescription(dto.getItemDescription());
-        detail.setItemType(dto.getItemType());
+        detail.setItemType(normalizeItemType(dto.getItemType()));
         detail.setQuantity(dto.getQuantity());
         detail.setUnitPrice(dto.getUnitPrice());
         detail.setSubtotal(subtotal);
@@ -379,7 +383,7 @@ public class QuotationService {
                 .setScale(2, RoundingMode.HALF_UP);
 
         detail.setItemDescription(dto.getItemDescription());
-        detail.setItemType(dto.getItemType());
+        detail.setItemType(normalizeItemType(dto.getItemType()));
         detail.setQuantity(dto.getQuantity());
         detail.setUnitPrice(dto.getUnitPrice());
         detail.setSubtotal(subtotal);
@@ -548,6 +552,20 @@ public class QuotationService {
                 "COMMERCIAL_QUOTATIONS",
                 "Mano de obra eliminada de cotización [" + quotation.getQuotationNumber() + "]"
         );
+    }
+
+    private String normalizeItemType(String rawItemType) {
+        if (rawItemType == null || rawItemType.isBlank()) {
+            throw new IllegalArgumentException("El tipo de ítem es obligatorio");
+        }
+        String normalized = rawItemType.trim().toUpperCase();
+        if ("OTRO".equals(normalized)) {
+            return "OTROS";
+        }
+        if (!ALLOWED_ITEM_TYPES.contains(normalized)) {
+            throw new IllegalArgumentException("Tipo de ítem no válido: " + rawItemType + ". Permitidos: " + ALLOWED_ITEM_TYPES);
+        }
+        return normalized;
     }
 
     private void recalculateTotals(QuotationEntity quotation) {

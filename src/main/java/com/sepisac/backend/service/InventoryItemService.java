@@ -28,8 +28,19 @@ import java.util.UUID;
 @Service
 public class InventoryItemService {
 
+    public static final Set<String> ALLOWED_CATEGORIES = Set.of(
+            "CONSUMIBLES_SOLDADURA",
+            "REPUESTOS_MECANICOS",
+            "LUBRICANTES_FLUIDOS",
+            "HERRAMIENTAS_EQUIPOS",
+            "SEGURIDAD_EPP",
+            "OTROS"
+    );
+
+    private static final String DEFAULT_CATEGORY = "CONSUMIBLES_SOLDADURA";
+
     private static final Set<String> ALLOWED_SORT_PROPERTIES = Set.of(
-            "id", "sku", "name", "stockQuantity", "purchaseCost", "salePrice", "minStockAlert", "createdAt", "updatedAt"
+            "id", "sku", "name", "category", "stockQuantity", "purchaseCost", "salePrice", "minStockAlert", "createdAt", "updatedAt"
     );
 
     private final InventoryItemRepository inventoryItemRepository;
@@ -65,6 +76,7 @@ public class InventoryItemService {
         item.setSku(dto.getSku());
         item.setName(dto.getName());
         item.setDescription(dto.getDescription());
+        item.setCategory(normalizeCategory(dto.getCategory(), true));
         item.setStockQuantity(dto.getStockQuantity());
         item.setPurchaseCost(dto.getPurchaseCost() != null ? dto.getPurchaseCost() : BigDecimal.ZERO);
         item.setSalePrice(dto.getSalePrice() != null ? dto.getSalePrice() : BigDecimal.ZERO);
@@ -102,6 +114,19 @@ public class InventoryItemService {
             Boolean lowStock,
             String sort,
             UserPrincipal currentUser) {
+        return getItemsPaged(companyId, page, size, search, null, lowStock, sort, currentUser);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponseDTO<InventoryItemResponseDTO> getItemsPaged(
+            UUID companyId,
+            int page,
+            int size,
+            String search,
+            String category,
+            Boolean lowStock,
+            String sort,
+            UserPrincipal currentUser) {
 
         boolean isSuperAdmin = currentUser != null && "ROLE_SUPERADMIN".equals(currentUser.getRole());
         UUID targetCompanyId = isSuperAdmin ? companyId : (currentUser != null ? currentUser.getCompanyId() : companyId);
@@ -116,12 +141,13 @@ public class InventoryItemService {
 
         Pageable pageable = createPageable(page, size, sort);
         String searchParam = (search != null && !search.trim().isEmpty()) ? "%" + search.trim().toLowerCase() + "%" : null;
+        String categoryParam = normalizeCategory(category, false);
 
         Page<InventoryItemEntity> pageResult;
         if (targetCompanyId != null) {
-            pageResult = inventoryItemRepository.findByCompanyIdWithFilters(targetCompanyId, lowStock, searchParam, pageable);
+            pageResult = inventoryItemRepository.findByCompanyIdWithFilters(targetCompanyId, lowStock, categoryParam, searchParam, pageable);
         } else {
-            pageResult = inventoryItemRepository.findAllWithFiltersGlobal(lowStock, searchParam, pageable);
+            pageResult = inventoryItemRepository.findAllWithFiltersGlobal(lowStock, categoryParam, searchParam, pageable);
         }
 
         List<InventoryItemResponseDTO> content = pageResult.getContent().stream()
@@ -146,6 +172,7 @@ public class InventoryItemService {
                 filter.getPage(),
                 filter.getSize(),
                 filter.getSearch(),
+                filter.getCategory(),
                 filter.getLowStock(),
                 filter.getSort(),
                 currentUser
@@ -177,6 +204,9 @@ public class InventoryItemService {
 
         item.setName(dto.getName());
         item.setDescription(dto.getDescription());
+        if (dto.getCategory() != null && !dto.getCategory().isBlank()) {
+            item.setCategory(normalizeCategory(dto.getCategory(), false));
+        }
         if (dto.getPurchaseCost() != null) {
             item.setPurchaseCost(dto.getPurchaseCost());
         }
@@ -251,11 +281,27 @@ public class InventoryItemService {
         return PageRequest.of(pageNum, pageSize, Sort.by(direction, property));
     }
 
+    private String normalizeCategory(String rawCategory, boolean defaultIfBlank) {
+        if (rawCategory == null || rawCategory.isBlank()) {
+            return defaultIfBlank ? DEFAULT_CATEGORY : null;
+        }
+        String normalized = rawCategory.trim().toUpperCase();
+        if (!ALLOWED_CATEGORIES.contains(normalized)) {
+            throw new IllegalArgumentException(
+                    "Categoría de inventario no válida: " + rawCategory + ". Permitidas: " + ALLOWED_CATEGORIES
+            );
+        }
+        return normalized;
+    }
+
     private InventoryItemResponseDTO mapToDTO(InventoryItemEntity entity) {
         UUID companyId = entity.getCompany() != null ? entity.getCompany().getId() : null;
         String companyName = entity.getCompany() != null ? entity.getCompany().getBusinessName() : null;
         boolean lowStock = entity.getStockQuantity() != null && entity.getMinStockAlert() != null
                 && entity.getStockQuantity() <= entity.getMinStockAlert();
+        String category = (entity.getCategory() != null && !entity.getCategory().isBlank())
+                ? entity.getCategory()
+                : DEFAULT_CATEGORY;
 
         return new InventoryItemResponseDTO(
                 entity.getId(),
@@ -264,6 +310,7 @@ public class InventoryItemService {
                 entity.getSku(),
                 entity.getName(),
                 entity.getDescription(),
+                category,
                 entity.getStockQuantity(),
                 entity.getPurchaseCost(),
                 entity.getSalePrice(),
@@ -281,16 +328,16 @@ public class InventoryItemService {
         if (inventoryItemRepository.count() > 0) return;
 
         Object[][] mocks = {
-            {"HER-042", "Taladro Percutor Bosch", "Almacén A - Estante 2", 1, 3, 450.00},
-            {"HER-089", "Esmeril Angular 7\"", "Almacén A - Estante 4", 0, 2, 320.00},
-            {"EPP-005", "Casco de Seguridad EPP", "Almacén B - Casilleros", 2, 10, 45.50},
-            {"CON-112", "Cable Eléctrico 12 AWG THW", "Almacén C - Bobinas", 450, 100, 2.50},
-            {"HER-015", "Sierra Circular Makita", "Almacén A - Estante 3", 5, 2, 580.00},
-            {"EPP-012", "Lentes de Seguridad 3M", "Almacén B - Casilleros", 15, 20, 12.00},
-            {"CON-045", "Cinta Aislante 3M", "Almacén C - Estante 1", 50, 20, 3.50},
-            {"HER-101", "Amoladora DeWalt", "Almacén A - Estante 1", 3, 2, 410.00},
-            {"EPP-033", "Guantes de Cuero", "Almacén B - Cajas", 5, 15, 25.00},
-            {"CON-201", "Aceite Lubricante 1L", "Almacén C - Líquidos", 8, 10, 35.00}
+            {"HER-042", "Taladro Percutor Bosch", "Almacén A - Estante 2", "HERRAMIENTAS_EQUIPOS", 1, 3, 450.00},
+            {"HER-089", "Esmeril Angular 7\"", "Almacén A - Estante 4", "HERRAMIENTAS_EQUIPOS", 0, 2, 320.00},
+            {"EPP-005", "Casco de Seguridad EPP", "Almacén B - Casilleros", "SEGURIDAD_EPP", 2, 10, 45.50},
+            {"CON-112", "Cable Eléctrico 12 AWG THW", "Almacén C - Bobinas", "CONSUMIBLES_SOLDADURA", 450, 100, 2.50},
+            {"HER-015", "Sierra Circular Makita", "Almacén A - Estante 3", "HERRAMIENTAS_EQUIPOS", 5, 2, 580.00},
+            {"EPP-012", "Lentes de Seguridad 3M", "Almacén B - Casilleros", "SEGURIDAD_EPP", 15, 20, 12.00},
+            {"CON-045", "Cinta Aislante 3M", "Almacén C - Estante 1", "CONSUMIBLES_SOLDADURA", 50, 20, 3.50},
+            {"HER-101", "Amoladora DeWalt", "Almacén A - Estante 1", "HERRAMIENTAS_EQUIPOS", 3, 2, 410.00},
+            {"EPP-033", "Guantes de Cuero", "Almacén B - Cajas", "SEGURIDAD_EPP", 5, 15, 25.00},
+            {"CON-201", "Aceite Lubricante 1L", "Almacén C - Líquidos", "LUBRICANTES_FLUIDOS", 8, 10, 35.00}
         };
 
         for (Object[] mock : mocks) {
@@ -298,11 +345,12 @@ public class InventoryItemService {
             item.setCompany(company);
             item.setSku((String) mock[0]);
             item.setName((String) mock[1]);
-            item.setDescription((String) mock[2]); 
-            item.setStockQuantity((Integer) mock[3]);
-            item.setMinStockAlert((Integer) mock[4]);
-            item.setPurchaseCost(new BigDecimal(mock[5].toString()));
-            item.setSalePrice(new BigDecimal(mock[5].toString()).multiply(new BigDecimal("1.3")));
+            item.setDescription((String) mock[2]);
+            item.setCategory((String) mock[3]);
+            item.setStockQuantity((Integer) mock[4]);
+            item.setMinStockAlert((Integer) mock[5]);
+            item.setPurchaseCost(new BigDecimal(mock[6].toString()));
+            item.setSalePrice(new BigDecimal(mock[6].toString()).multiply(new BigDecimal("1.3")));
             inventoryItemRepository.save(item);
         }
     }

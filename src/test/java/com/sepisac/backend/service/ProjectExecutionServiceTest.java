@@ -170,6 +170,23 @@ class ProjectExecutionServiceTest {
         }
 
         @Test
+        @DisplayName("Debe formatear el título del proyecto cuando serviceType usa un código del catálogo")
+        void shouldFormatCatalogServiceTypeInProjectTitle() {
+            testQuotation.setServiceType("TORNEADO_EJES");
+            when(quotationRepository.findById(quotationId)).thenReturn(Optional.of(testQuotation));
+            when(projectRepository.existsByCompanyIdAndCode(companyId, "PRJ-COT-2026-001")).thenReturn(false);
+            when(projectRepository.save(any(ProjectEntity.class))).thenAnswer(invocation -> {
+                ProjectEntity p = invocation.getArgument(0);
+                p.setId(projectId);
+                return p;
+            });
+
+            ProjectResponseDTO result = projectExecutionService.createProjectFromQuotation(quotationId);
+
+            assertThat(result.getTitle()).isEqualTo("Torneado de Ejes - Minera Chinalco Perú");
+        }
+
+        @Test
         @DisplayName("Debe lanzar BusinessRuleException si la cotización NO está APROBADA")
         void shouldThrowExceptionWhenQuotationNotApproved() {
             testQuotation.setStatus("BORRADOR");
