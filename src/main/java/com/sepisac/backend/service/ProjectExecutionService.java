@@ -365,6 +365,25 @@ public class ProjectExecutionService {
         );
     }
 
+    public static String normalizeProjectTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return title;
+        }
+        String trimmed = title.trim();
+        for (java.util.Map.Entry<String, String> entry : SERVICE_TYPE_LABELS.entrySet()) {
+            String code = entry.getKey();
+            String label = entry.getValue();
+            if (trimmed.equals(code)) {
+                return label;
+            }
+            String prefix = code + " - ";
+            if (trimmed.startsWith(prefix)) {
+                return label + " - " + trimmed.substring(prefix.length());
+            }
+        }
+        return title;
+    }
+
     private String formatServiceTypeLabel(String serviceType) {
         if (serviceType == null || serviceType.isBlank()) {
             return "Servicio General";
@@ -379,7 +398,7 @@ public class ProjectExecutionService {
         dto.setCompanyId(project.getCompany().getId());
         dto.setQuotationId(project.getQuotation().getId());
         dto.setCode(project.getCode());
-        dto.setTitle(project.getTitle());
+        dto.setTitle(normalizeProjectTitle(project.getTitle()));
         dto.setDescription(project.getDescription());
         dto.setStatus(project.getStatus());
         dto.setStartDate(project.getStartDate());
