@@ -1,9 +1,6 @@
 services:
   sepisac-backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ${DOCKER_IMAGE:-sepisac-backend:latest}
+    image: ${DOCKER_IMAGE:-ghcr.io/liunks/sepisac-b:latest}
     container_name: sepisac-backend-app
     restart: unless-stopped
     ports:

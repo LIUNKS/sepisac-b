@@ -172,7 +172,7 @@ public class ProjectService {
         dto.setCompanyId(project.getCompany().getId());
         dto.setQuotationId(project.getQuotation().getId());
         dto.setCode(project.getCode());
-        dto.setTitle(project.getTitle());
+        dto.setTitle(ProjectExecutionService.normalizeProjectTitle(project.getTitle()));
         dto.setDescription(project.getDescription());
         dto.setStatus(project.getStatus());
         dto.setStartDate(project.getStartDate());
